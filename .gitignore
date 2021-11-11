@@ -1,0 +1,14 @@
+bin
+build
+out
+check
+tests
+exts
+/*.hdr
+/*.exr
+/*.png
+/*.jpg
+.vs
+libs/yocto/*
+libs/yocto_gui/*
+readme.*
