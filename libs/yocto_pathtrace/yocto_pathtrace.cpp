@@ -91,39 +91,139 @@ static vec3f eval_emission(const material_point& material, const vec3f& normal,
 static vec3f eval_bsdfcos(const material_point& material, const vec3f& normal,
     const vec3f& outgoing, const vec3f& incoming) {
   // YOUR CODE GOES HERE
-  return {0, 0, 0};
+
+  if (material.roughness == 0) return {0, 0, 0};
+
+  switch (material.type) {
+    case material_type::matte :
+      return eval_matte(material.color, normal, outgoing, incoming);
+    case material_type::glossy:
+      return eval_glossy(material.color, material.ior, material.roughness,
+          normal, outgoing, incoming);
+    case material_type::reflective :
+      return eval_reflective(
+          material.color, material.roughness, normal, outgoing, incoming);
+    case material_type::transparent:
+      return eval_transparent(material.color, material.ior,
+            material.roughness, normal, outgoing, incoming);
+    case material_type::refractive:
+      return eval_refractive(material.color, material.ior, material.roughness,
+            normal, outgoing, incoming);
+    default:
+      return {0, 0, 0};
+  }
 }
 
 static vec3f eval_delta(const material_point& material, const vec3f& normal,
     const vec3f& outgoing, const vec3f& incoming) {
   // YOUR CODE GOES HERE
-  return {0, 0, 0};
+  if (material.roughness != 0) return {0, 0, 0};
+
+  switch (material.type) {
+    case material_type::reflective:
+      return eval_reflective(material.color, normal, outgoing, incoming);
+      break;
+    case material_type::transparent:
+      return eval_transparent(
+        material.color, material.ior, normal, outgoing, incoming);
+      break;
+    case material_type::refractive:
+      return eval_refractive(
+        material.color, material.ior, normal, outgoing, incoming);
+      break;
+    default: return {0, 0, 0};
+  }
 }
 
 // Picks a direction based on the BRDF
 static vec3f sample_bsdfcos(const material_point& material, const vec3f& normal,
     const vec3f& outgoing, float rnl, const vec2f& rn) {
   // YOUR CODE GOES HERE
-  return {0, 0, 0};
+  if (material.roughness == 0) return {0, 0, 0};
+
+  switch (material.type) {
+    case material_type::matte:
+      return sample_matte(material.color, normal, outgoing, rn);
+    case material_type::glossy:
+      return sample_glossy(material.color, material.ior, material.roughness,
+          normal, outgoing, rnl, rn);
+    case material_type::reflective:
+      return sample_reflective(
+          material.color, material.roughness, normal, outgoing, rn);
+    case material_type::transparent:
+      return sample_transparent(material.color, material.ior,
+          material.roughness, normal, outgoing, rnl, rn);
+    case material_type::refractive:
+      return sample_refractive(material.color, material.ior, material.roughness,
+          normal, outgoing, rnl, rn);
+    default: return {0, 0, 0};
+  }
 }
 
 static vec3f sample_delta(const material_point& material, const vec3f& normal,
     const vec3f& outgoing, float rnl) {
   // YOUR CODE GOES HERE
-  return {0, 0, 0};
+
+  if (material.roughness != 0) return {0, 0, 0};
+
+  switch (material.type) {
+    case material_type::reflective:
+      return sample_reflective(material.color, normal, outgoing);
+    case material_type::transparent:
+      return sample_transparent(
+          material.color, material.ior, normal, outgoing, rnl);
+    case material_type::refractive:
+      return sample_refractive(
+          material.color, material.ior, normal, outgoing, rnl);
+    default:
+      return {0, 0, 0};
+  }
 }
 
 // Compute the weight for sampling the BRDF
 static float sample_bsdfcos_pdf(const material_point& material,
     const vec3f& normal, const vec3f& outgoing, const vec3f& incoming) {
   // YOUR CODE GOES HERE
-  return 0;
+
+  if (material.roughness == 0) return 0;
+
+  switch (material.type) {
+    case material_type::matte:
+      return sample_matte_pdf(material.color, normal, outgoing, incoming);
+    case material_type::glossy:
+      return sample_glossy_pdf(material.color, material.ior, material.roughness,
+          normal, outgoing, incoming);
+    case material_type::reflective:
+      return sample_reflective_pdf(
+          material.color, material.roughness, normal, outgoing, incoming);
+    case material_type::transparent:
+      return sample_tranparent_pdf(material.color, material.ior,
+          material.roughness, normal, outgoing, incoming);
+    case material_type::refractive:
+      return sample_refractive_pdf(material.color, material.ior,
+          material.roughness, normal, outgoing, incoming);
+    default: return 0;
+  }
 }
 
 static float sample_delta_pdf(const material_point& material,
     const vec3f& normal, const vec3f& outgoing, const vec3f& incoming) {
   // YOUR CODE GOES HERE
-  return 0;
+  
+  if (material.roughness != 0) return 0;
+
+  switch (material.type) {
+    case material_type::reflective:
+      return sample_reflective_pdf(material.color, normal, outgoing, incoming);
+    case material_type::transparent:
+      return sample_tranparent_pdf(
+          material.color, material.ior, normal, outgoing, incoming);
+    case material_type::refractive:
+      return sample_refractive_pdf(
+          material.color, material.ior, normal, outgoing, incoming);
+    default:
+      return 0;
+  }
 }
 
 // Sample lights wrt solid angle
@@ -155,7 +255,73 @@ static vec4f shade_naive(const scene_data& scene, const bvh_data& bvh,
     const pathtrace_lights& lights, const ray3f& ray_, rng_state& rng,
     const pathtrace_params& params) {
   // YOUR CODE GOES HERE
-  return {0, 0, 0, 0};
+
+  // initialize
+  auto radiance = vec4f{0, 0, 0, 0};
+  auto weight   = vec3f{1, 1, 1};
+  auto ray      = ray_;
+  auto hit      = false;
+
+  // trace  path
+  for (auto bounce = 0; bounce < max(params.bounces, 4); bounce++) {
+    // intersect next point
+    auto intersection = intersect_bvh(bvh, scene, ray);
+    if (!intersection.hit) {
+      auto env = weight * eval_environment(scene, ray.d);
+      radiance += {env.x, env.y, env.z, 0};
+      break;
+    }
+
+    // prepare shading point
+    auto outgoing = -ray.d;
+    auto position = eval_shading_position(scene, intersection, outgoing);
+    auto normal   = eval_shading_normal(scene, intersection, outgoing);
+    auto material = eval_material(scene, intersection);
+
+    // handle opacity
+    if (material.opacity < 1 && rand1f(rng) >= material.opacity) {
+      ray = {position + ray.d * 1e-2f, ray.d};
+      bounce -= 1;
+      continue;
+    }
+
+    // set hit variables
+    if (bounce == 0) hit = true;
+
+    // accumulate emission
+    auto emission = weight * eval_emission(material, normal, outgoing);
+    radiance += {emission.x, emission.y, emission.z, 1};
+
+    // next direction
+    auto incoming = vec3f{0, 0, 0};
+    if (!is_delta(material)) {
+      incoming = sample_bsdfcos(
+          material, normal, outgoing, rand1f(rng), rand2f(rng));
+      //if (incoming == vec3f{0, 0, 0}) break;
+      weight *= eval_bsdfcos(material, normal, outgoing, incoming) /
+                sample_bsdfcos_pdf(material, normal, outgoing, incoming);
+    } else {
+      incoming = sample_delta(material, normal, outgoing, rand1f(rng));
+      //if (incoming == vec3f{0, 0, 0}) break;
+      weight *= eval_delta(material, normal, outgoing, incoming) /
+                sample_delta_pdf(material, normal, outgoing, incoming);
+    }
+
+    // check weight
+    if (weight == vec3f{0, 0, 0} || !isfinite(weight)) break;
+
+    // russian roulette
+    if (bounce > 2) {
+      auto rr_prob = min((float)0.99, max(weight));
+      if (rand1f(rng) >= rr_prob) break;
+      weight *= 1 / rr_prob;
+    }
+
+    // setup next iteration
+    ray = {position, incoming};
+  }
+
+  return {radiance.x, radiance.y, radiance.z, hit ? 1.0f : 0.0f};
 }
 
 // Eyelight for quick previewing.
@@ -371,7 +537,9 @@ void pathtrace_samples(pathtrace_state& state, const scene_data& scene,
     for (auto idx = 0; idx < state.width * state.height; idx++) {
       auto i = idx % state.width, j = idx / state.width;
       auto u = (i + 0.5f) / state.width, v = (j + 0.5f) / state.height;
-      auto ray      = eval_camera(camera, {u, v}, {0, 0});
+      auto rng      = state.rngs[idx];
+      auto ray = eval_camera(
+          camera, {u, v}, sample_disk(rand2f(state.rngs[idx])));
       auto radiance = shader(scene, bvh, lights, ray, state.rngs[idx], params);
       if (!isfinite(radiance)) radiance = {0, 0, 0};
       state.image[idx] += radiance;
@@ -382,7 +550,7 @@ void pathtrace_samples(pathtrace_state& state, const scene_data& scene,
       auto i = idx % state.width, j = idx / state.width;
       auto u        = (i + rand1f(state.rngs[idx])) / state.width,
            v        = (j + rand1f(state.rngs[idx])) / state.height;
-      auto ray      = eval_camera(camera, {u, v}, {0, 0});
+      auto ray      = eval_camera(camera, {u, v}, sample_disk(rand2f(state.rngs[idx])));
       auto radiance = shader(scene, bvh, lights, ray, state.rngs[idx], params);
       if (!isfinite(radiance)) radiance = {0, 0, 0};
       state.image[idx] += radiance;
@@ -393,7 +561,8 @@ void pathtrace_samples(pathtrace_state& state, const scene_data& scene,
       auto i = idx % state.width, j = idx / state.width;
       auto u        = (i + rand1f(state.rngs[idx])) / state.width,
            v        = (j + rand1f(state.rngs[idx])) / state.height;
-      auto ray      = eval_camera(camera, {u, v}, {0, 0});
+      auto ray = eval_camera(
+          camera, {u, v}, sample_disk(rand2f(state.rngs[idx])));
       auto radiance = shader(scene, bvh, lights, ray, state.rngs[idx], params);
       if (!isfinite(radiance)) radiance = {0, 0, 0};
       state.image[idx] += radiance;
