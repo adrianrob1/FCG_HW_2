@@ -95,22 +95,21 @@ static vec3f eval_bsdfcos(const material_point& material, const vec3f& normal,
   if (material.roughness == 0) return {0, 0, 0};
 
   switch (material.type) {
-    case material_type::matte :
+    case material_type::matte:
       return eval_matte(material.color, normal, outgoing, incoming);
     case material_type::glossy:
       return eval_glossy(material.color, material.ior, material.roughness,
           normal, outgoing, incoming);
-    case material_type::reflective :
+    case material_type::reflective:
       return eval_reflective(
           material.color, material.roughness, normal, outgoing, incoming);
     case material_type::transparent:
-      return eval_transparent(material.color, material.ior,
-            material.roughness, normal, outgoing, incoming);
+      return eval_transparent(material.color, material.ior, material.roughness,
+          normal, outgoing, incoming);
     case material_type::refractive:
       return eval_refractive(material.color, material.ior, material.roughness,
-            normal, outgoing, incoming);
-    default:
-      return {0, 0, 0};
+          normal, outgoing, incoming);
+    default: return {0, 0, 0};
   }
 }
 
@@ -125,11 +124,11 @@ static vec3f eval_delta(const material_point& material, const vec3f& normal,
       break;
     case material_type::transparent:
       return eval_transparent(
-        material.color, material.ior, normal, outgoing, incoming);
+          material.color, material.ior, normal, outgoing, incoming);
       break;
     case material_type::refractive:
       return eval_refractive(
-        material.color, material.ior, normal, outgoing, incoming);
+          material.color, material.ior, normal, outgoing, incoming);
       break;
     default: return {0, 0, 0};
   }
@@ -175,8 +174,7 @@ static vec3f sample_delta(const material_point& material, const vec3f& normal,
     case material_type::refractive:
       return sample_refractive(
           material.color, material.ior, normal, outgoing, rnl);
-    default:
-      return {0, 0, 0};
+    default: return {0, 0, 0};
   }
 }
 
@@ -209,7 +207,7 @@ static float sample_bsdfcos_pdf(const material_point& material,
 static float sample_delta_pdf(const material_point& material,
     const vec3f& normal, const vec3f& outgoing, const vec3f& incoming) {
   // YOUR CODE GOES HERE
-  
+
   if (material.roughness != 0) return 0;
 
   switch (material.type) {
@@ -221,8 +219,7 @@ static float sample_delta_pdf(const material_point& material,
     case material_type::refractive:
       return sample_refractive_pdf(
           material.color, material.ior, normal, outgoing, incoming);
-    default:
-      return 0;
+    default: return 0;
   }
 }
 
@@ -231,6 +228,36 @@ static vec3f sample_lights(const scene_data& scene,
     const pathtrace_lights& lights, const vec3f& position, float rl, float rel,
     const vec2f& ruv) {
   // YOUR CODE GOES HERE
+  auto  lid   = sample_uniform((int)lights.lights.size(), rl);
+  auto& light = lights.lights[lid];
+
+  if (light.instance != invalidid) {
+    auto& instance = scene.instances[light.instance];
+    auto& shape    = scene.shapes[instance.shape];
+    auto  uv       = ruv;
+    if (!shape.triangles.empty()) uv = sample_triangle(ruv);
+
+    auto tid       = sample_discrete(light.elements_cdf, rel);
+    auto lp = eval_position(scene, instance, tid, uv);
+
+    return normalize(lp - position);
+  } 
+  else if (light.environment != invalidid) {
+    auto& env     = scene.environments[light.environment];
+    auto& texture = scene.textures[env.emission_tex];
+    auto tid     = sample_discrete(light.elements_cdf, rel);
+    
+    auto uv = vec2f{((tid % texture.width) + 0.5f) / texture.width,
+        ((tid / texture.width) + 0.5f) / texture.height};
+
+    return transform_direction(
+        env.frame, {
+          cosf(uv.x * 2 * pif) * sinf(uv.y * pif), 
+          cosf(uv.y * pif),
+          sinf(uv.x * 2 * pif) * sinf(uv.y * pif)
+      });
+  }
+
   return {0, 0, 0};
 }
 
@@ -239,7 +266,53 @@ static float sample_lights_pdf(const scene_data& scene, const bvh_data& bvh,
     const pathtrace_lights& lights, const vec3f& position,
     const vec3f& direction) {
   // YOUR CODE GOES HERE
-  return 0;
+  auto pdf = 0.0f;
+  auto next_pos = position;
+  for (auto& light : lights.lights) {
+    if (light.instance != invalidid) {
+      auto& instance = scene.instances[light.instance];
+      auto lpdf = 0.0f;
+      for (auto bounce = 0; bounce < 100; bounce++) {
+        auto isec = intersect_bvh(
+            bvh, scene, light.instance, {next_pos, direction});
+        if (!isec.hit) break;
+        
+        // compute pdf on this triangle
+        auto lposition = eval_position(
+            scene, instance, isec.element, isec.uv);
+        auto lnormal = eval_element_normal(
+            scene, instance, isec.element);
+
+        // prob triangle * area triangle = area triangle mesh
+        auto area = light.elements_cdf.back();
+        lpdf += distance_squared(lposition, position) /
+                (abs(dot(lnormal, direction)) * area);
+
+        // continue
+        next_pos = lposition + direction * 1e-3f;
+      }
+    } else if (light.environment != invalidid) {
+      auto  env          = scene.environments[light.environment];
+      auto& texture = scene.textures[env.emission_tex];
+      auto  wl = transform_direction(inverse(env.frame), direction);
+      auto  texcoord = vec2f{
+          atan2(wl.z, wl.x) / (2 * pif), acos(clamp(wl.y, -1.0f, 1.0f)) / pif};
+      if (texcoord.x < 0) texcoord.x += 1;
+      auto i = clamp((int)(texcoord.x * texture.width), 0, texture.width - 1);
+      auto j = clamp((int)(texcoord.y * texture.height), 0, texture.height - 1);
+      auto prob = sample_discrete_pdf(
+                      light.elements_cdf, j * texture.width + i) /
+                  light.elements_cdf.back();
+      auto angle = (2 * pif / texture.width) * (pif / texture.height) *
+                   sin(pif * (j + 0.5f) / texture.height);
+      pdf += prob / angle;
+    } else {
+      pdf += 1 / (4 * pif);
+    }
+  }
+
+  pdf *= sample_uniform_pdf((int)lights.lights.size());
+  return pdf;
 }
 
 // Recursive path tracing.
@@ -247,6 +320,9 @@ static vec4f shade_pathtrace(const scene_data& scene, const bvh_data& bvh,
     const pathtrace_lights& lights, const ray3f& ray_, rng_state& rng,
     const pathtrace_params& params) {
   // YOUR CODE GOES HERE
+
+
+
   return {0, 0, 0, 0};
 }
 
@@ -257,7 +333,7 @@ static vec4f shade_naive(const scene_data& scene, const bvh_data& bvh,
   // YOUR CODE GOES HERE
 
   // initialize
-  auto radiance = vec4f{0, 0, 0, 0};
+  auto radiance = vec3f{0, 0, 0};
   auto weight   = vec3f{1, 1, 1};
   auto ray      = ray_;
   auto hit      = false;
@@ -267,8 +343,7 @@ static vec4f shade_naive(const scene_data& scene, const bvh_data& bvh,
     // intersect next point
     auto intersection = intersect_bvh(bvh, scene, ray);
     if (!intersection.hit) {
-      auto env = weight * eval_environment(scene, ray.d);
-      radiance += {env.x, env.y, env.z, 0};
+      radiance += weight * eval_environment(scene, ray.d);
       break;
     }
 
@@ -285,24 +360,26 @@ static vec4f shade_naive(const scene_data& scene, const bvh_data& bvh,
       continue;
     }
 
-    // set hit variables
-    if (bounce == 0) hit = true;
+    if (bounce == 0)
+      hit = true;
 
     // accumulate emission
-    auto emission = weight * eval_emission(material, normal, outgoing);
-    radiance += {emission.x, emission.y, emission.z, 1};
+    radiance += weight * eval_emission(material, normal, outgoing);
+    if (radiance.x > 10 || radiance.y > 10 || radiance.z > 10) break;
+
 
     // next direction
     auto incoming = vec3f{0, 0, 0};
     if (!is_delta(material)) {
       incoming = sample_bsdfcos(
           material, normal, outgoing, rand1f(rng), rand2f(rng));
-      //if (incoming == vec3f{0, 0, 0}) break;
+      //radiance += weight * eval_bsdfcos(material, normal, outgoing, incoming);
+      // if (incoming == vec3f{0, 0, 0}) break;
       weight *= eval_bsdfcos(material, normal, outgoing, incoming) /
                 sample_bsdfcos_pdf(material, normal, outgoing, incoming);
     } else {
       incoming = sample_delta(material, normal, outgoing, rand1f(rng));
-      //if (incoming == vec3f{0, 0, 0}) break;
+      // if (incoming == vec3f{0, 0, 0}) break;
       weight *= eval_delta(material, normal, outgoing, incoming) /
                 sample_delta_pdf(material, normal, outgoing, incoming);
     }
@@ -537,34 +614,38 @@ void pathtrace_samples(pathtrace_state& state, const scene_data& scene,
     for (auto idx = 0; idx < state.width * state.height; idx++) {
       auto i = idx % state.width, j = idx / state.width;
       auto u = (i + 0.5f) / state.width, v = (j + 0.5f) / state.height;
-      auto rng      = state.rngs[idx];
+      auto rng = state.rngs[idx];
       auto ray = eval_camera(
           camera, {u, v}, sample_disk(rand2f(state.rngs[idx])));
       auto radiance = shader(scene, bvh, lights, ray, state.rngs[idx], params);
       if (!isfinite(radiance)) radiance = {0, 0, 0};
+      radiance = clamp(radiance, 0.0f, 10.0f);
       state.image[idx] += radiance;
       state.hits[idx] += 1;
     }
   } else if (params.noparallel) {
     for (auto idx = 0; idx < state.width * state.height; idx++) {
       auto i = idx % state.width, j = idx / state.width;
-      auto u        = (i + rand1f(state.rngs[idx])) / state.width,
-           v        = (j + rand1f(state.rngs[idx])) / state.height;
-      auto ray      = eval_camera(camera, {u, v}, sample_disk(rand2f(state.rngs[idx])));
+      auto u   = (i + rand1f(state.rngs[idx])) / state.width,
+           v   = (j + rand1f(state.rngs[idx])) / state.height;
+      auto ray = eval_camera(
+          camera, {u, v}, sample_disk(rand2f(state.rngs[idx])));
       auto radiance = shader(scene, bvh, lights, ray, state.rngs[idx], params);
       if (!isfinite(radiance)) radiance = {0, 0, 0};
+      radiance      = clamp(radiance, 0.0f, 10.0f);
       state.image[idx] += radiance;
       state.hits[idx] += 1;
     }
   } else {
     parallel_for(state.width * state.height, [&](int idx) {
       auto i = idx % state.width, j = idx / state.width;
-      auto u        = (i + rand1f(state.rngs[idx])) / state.width,
-           v        = (j + rand1f(state.rngs[idx])) / state.height;
+      auto u   = (i + rand1f(state.rngs[idx])) / state.width,
+           v   = (j + rand1f(state.rngs[idx])) / state.height;
       auto ray = eval_camera(
           camera, {u, v}, sample_disk(rand2f(state.rngs[idx])));
       auto radiance = shader(scene, bvh, lights, ray, state.rngs[idx], params);
       if (!isfinite(radiance)) radiance = {0, 0, 0};
+      radiance = clamp(radiance, 0.0f, 10.0f);
       state.image[idx] += radiance;
       state.hits[idx] += 1;
     });
