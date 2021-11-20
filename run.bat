@@ -1,3 +1,4 @@
+.\bin\ypathtrace --scene tests/18_refraction/refraction.json --output out/path/18_refraction_720_256.jpg --shader pathtrace --samples 256 --resolution 720 --bounces 8
 .\bin\ypathtrace --scene tests/01_cornellbox/cornellbox.json --output out/path/01_cornellbox_512_256.jpg --shader pathtrace --samples 256 --resolution 512 --bounces 4
 .\bin\ypathtrace --scene tests/02_matte/matte.json --output out/path/02_matte_720_256.jpg --shader pathtrace --samples 256 --resolution 720 --bounces 4
 .\bin\ypathtrace --scene tests/03_metal/metal.json --output out/path/03_metal_720_256.jpg --shader pathtrace --samples 256 --resolution 720 --bounces 4
