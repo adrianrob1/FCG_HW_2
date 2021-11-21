@@ -507,10 +507,10 @@ inline float triangle_area(const vec3f& p0, const vec3f& p1, const vec3f& p2) {
   return length(cross(p1 - p0, p2 - p0)) / 2;
 }
 
-// Quad properties.
+// Quad propeties.
 inline vec3f quad_normal(
     const vec3f& p0, const vec3f& p1, const vec3f& p2, const vec3f& p3) {
-  return normalize(cross(p1 - p0, p3 - p2));
+  return normalize(triangle_normal(p0, p1, p3) + triangle_normal(p2, p3, p1));
 }
 inline float quad_area(
     const vec3f& p0, const vec3f& p1, const vec3f& p2, const vec3f& p3) {
@@ -663,8 +663,8 @@ inline ray3f camera_ray(const frame3f& frame, float lens, float aspect,
     float film_, const vec2f& image_uv) {
   auto film = aspect >= 1 ? vec2f{film_, film_ / aspect}
                           : vec2f{film_ * aspect, film_};
-  auto e = vec3f{0, 0, 0};
-  auto q = vec3f{
+  auto e    = vec3f{0, 0, 0};
+  auto q    = vec3f{
       film.x * (0.5f - image_uv.x), film.y * (image_uv.y - 0.5f), lens};
   auto q1  = -q;
   auto d   = normalize(q1 - e);
@@ -836,36 +836,36 @@ inline bool intersect_quad(const ray3f& ray, const vec3f& p0, const vec3f& p1,
     tray.tmax = dist;
   }
   return hit;
-  }
+}
 
-  // Intersect a ray with a axis-aligned bounding box
-  inline bool intersect_bbox(const ray3f& ray, const bbox3f& bbox) {
-    // determine intersection ranges
-    auto invd = 1.0f / ray.d;
-    auto t0   = (bbox.min - ray.o) * invd;
-    auto t1   = (bbox.max - ray.o) * invd;
-    // flip based on range directions
-    if (invd.x < 0.0f) swap(t0.x, t1.x);
-    if (invd.y < 0.0f) swap(t0.y, t1.y);
-    if (invd.z < 0.0f) swap(t0.z, t1.z);
-    auto tmin = max(t0.z, max(t0.y, max(t0.x, ray.tmin)));
-    auto tmax = min(t1.z, min(t1.y, min(t1.x, ray.tmax)));
-    tmax *= 1.00000024f;  // for double: 1.0000000000000004
-    return tmin <= tmax;
-  }
+// Intersect a ray with a axis-aligned bounding box
+inline bool intersect_bbox(const ray3f& ray, const bbox3f& bbox) {
+  // determine intersection ranges
+  auto invd = 1.0f / ray.d;
+  auto t0   = (bbox.min - ray.o) * invd;
+  auto t1   = (bbox.max - ray.o) * invd;
+  // flip based on range directions
+  if (invd.x < 0.0f) swap(t0.x, t1.x);
+  if (invd.y < 0.0f) swap(t0.y, t1.y);
+  if (invd.z < 0.0f) swap(t0.z, t1.z);
+  auto tmin = max(t0.z, max(t0.y, max(t0.x, ray.tmin)));
+  auto tmax = min(t1.z, min(t1.y, min(t1.x, ray.tmax)));
+  tmax *= 1.00000024f;  // for double: 1.0000000000000004
+  return tmin <= tmax;
+}
 
-  // Intersect a ray with a axis-aligned bounding box
-  inline bool intersect_bbox(
-      const ray3f& ray, const vec3f& ray_dinv, const bbox3f& bbox) {
-    auto it_min = (bbox.min - ray.o) * ray_dinv;
-    auto it_max = (bbox.max - ray.o) * ray_dinv;
-    auto tmin   = min(it_min, it_max);
-    auto tmax   = max(it_min, it_max);
-    auto t0     = max(max(tmin), ray.tmin);
-    auto t1     = min(min(tmax), ray.tmax);
-    t1 *= 1.00000024f;  // for double: 1.0000000000000004
-    return t0 <= t1;
-  }
+// Intersect a ray with a axis-aligned bounding box
+inline bool intersect_bbox(
+    const ray3f& ray, const vec3f& ray_dinv, const bbox3f& bbox) {
+  auto it_min = (bbox.min - ray.o) * ray_dinv;
+  auto it_max = (bbox.max - ray.o) * ray_dinv;
+  auto tmin   = min(it_min, it_max);
+  auto tmax   = max(it_min, it_max);
+  auto t0     = max(max(tmin), ray.tmin);
+  auto t1     = min(min(tmax), ray.tmax);
+  t1 *= 1.00000024f;  // for double: 1.0000000000000004
+  return t0 <= t1;
+}
 
 }  // namespace yocto
 

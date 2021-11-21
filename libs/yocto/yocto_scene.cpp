@@ -339,16 +339,9 @@ vec3f eval_normal(const scene_data& scene, const instance_data& instance,
                             shape.normals[t.y], shape.normals[t.z], uv)));
   } else if (!shape.quads.empty()) {
     auto q = shape.quads[element];
-
-    auto q00 = shape.positions[q.x], q10 = shape.positions[q.y],
-         q11 = shape.positions[q.z], q01 = shape.positions[q.w];
-    auto e10 = q10 - q00;
-    auto e11 = q11 - q10;
-    auto e00 = q01 - q00;
-
-    auto du = lerp(e10, q11 - q01, uv.y);
-    auto dv = lerp(e00, e11, uv.x);
-    return transform_normal(instance.frame, normalize(cross(du, dv)));
+    return transform_normal(instance.frame,
+        normalize(interpolate_quad(shape.normals[q.x], shape.normals[q.y],
+            shape.normals[q.z], shape.normals[q.w], uv)));
   } else if (!shape.lines.empty()) {
     auto l = shape.lines[element];
     return transform_normal(instance.frame,

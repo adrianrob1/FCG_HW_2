@@ -3193,8 +3193,6 @@ pair<int, vec2f> sample_quads(const vector<vec4i>& quads,
   if (quads[element].z == quads[element].w) {
     return {element, sample_triangle(ruv)};
   } else {
-    // sample on the quad surface
-
     return {element, ruv};
   }
 }
