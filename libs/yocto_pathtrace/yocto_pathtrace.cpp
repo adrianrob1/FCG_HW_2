@@ -576,14 +576,82 @@ static vec4f shade_texcoord(const scene_data& scene, const bvh_data& bvh,
   return {texcoord.x, texcoord.y, 0, 1};
 }
 
-// Color for debugging.
+// Albedo for denosing
+static vec4f shade_albedo(const scene_data& scene, const bvh_data& bvh,
+    const pathtrace_lights& lights, const ray3f& ray_, rng_state& rng,
+    const pathtrace_params& params) {
+  // initialize
+  auto radiance = vec3f{0, 0, 0};
+  auto ray      = ray_;
+  auto hit      = false;
+
+  // trace  path
+  for (auto bounce = 0; bounce < min(params.bounces, 4); bounce++) {
+    // intersect next point
+    auto intersection = intersect_bvh(bvh, scene, ray);
+    if (!intersection.hit) {
+      radiance += eval_environment(scene, ray.d);
+      break;
+    }
+
+    // prepare shading point
+    auto outgoing = -ray.d;
+    auto position = eval_shading_position(scene, intersection, outgoing);
+    auto normal   = eval_shading_normal(scene, intersection, outgoing);
+    auto material = eval_material(scene, intersection);
+
+    // handle opacity
+    if (material.opacity < 1) {
+      ray = {position + ray.d * 1e-2f, ray.d};
+      bounce -= 1;
+      continue;
+    }
+
+    if (material.type == material_type::refractive) {
+      return {1, 1, 1, 1};
+    }
+
+    // set hit variables
+    if (bounce == 0) hit = true;
+
+    // accumulate emission
+    auto incoming = reflect(outgoing, normal);
+    radiance += eval_emission(material, normal, outgoing);
+
+    // brdf * light
+    if (material.type == material_type::glossy || material.roughness != 0) radiance += material.color;
+    else
+      radiance += pif * eval_bsdfcos(material, normal, outgoing, incoming) /
+                abs(dot(normal, incoming));
+
+    // continue path
+    if (!is_delta(material)) break;
+
+    switch (material.type) {
+      case material_type::reflective:
+        incoming = sample_reflective(material.color, normal, outgoing);
+        break;
+      case material_type::transparent: incoming = -outgoing; break;
+      default:
+        incoming = sample_delta(material, normal, outgoing, rand1f(rng));
+        break;
+    }
+
+    if (incoming == vec3f{0, 0, 0}) break;
+
+    // setup next iteration
+    ray = {position, incoming};
+  }
+
+  return {radiance.x, radiance.y, radiance.z, 1};
+}
+
 static vec4f shade_color(const scene_data& scene, const bvh_data& bvh,
     const pathtrace_lights& lights, const ray3f& ray, rng_state& rng,
     const pathtrace_params& params) {
   // intersect next point
   auto intersection = intersect_bvh(bvh, scene, ray);
   if (!intersection.hit) return {0, 0, 0, 0};
-
   // prepare shading point
   auto color = eval_material(scene, intersection).color;
   return {color.x, color.y, color.z, 1};
@@ -601,6 +669,7 @@ static pathtrace_shader_func get_shader(const pathtrace_params& params) {
     case pathtrace_shader_type::normal: return shade_normal;
     case pathtrace_shader_type::texcoord: return shade_texcoord;
     case pathtrace_shader_type::color: return shade_color;
+    case pathtrace_shader_type::albedo: return shade_albedo;
     default: {
       throw std::runtime_error("sampler unknown");
       return nullptr;
@@ -814,7 +883,9 @@ void pathtrace_samples(pathtrace_state& state, const scene_data& scene,
           camera, {u, v}, sample_disk(rand2f(state.rngs[idx])));
       auto radiance = shader(scene, bvh, lights, ray, state.rngs[idx], params);
       if (!isfinite(radiance)) radiance = {0, 0, 0};
-      radiance = clamp(radiance, 0.0f, 10.0f);
+      if (params.shader == pathtrace_shader_type::pathtrace ||
+          params.shader == pathtrace_shader_type::naive)
+        radiance = clamp(radiance, 0.0f, 10.0f);
       state.image[idx] += radiance;
       state.hits[idx] += 1;
     }
@@ -827,7 +898,9 @@ void pathtrace_samples(pathtrace_state& state, const scene_data& scene,
           camera, {u, v}, sample_disk(rand2f(state.rngs[idx])));
       auto radiance = shader(scene, bvh, lights, ray, state.rngs[idx], params);
       if (!isfinite(radiance)) radiance = {0, 0, 0};
-      radiance = clamp(radiance, 0.0f, 10.0f);
+      if (params.shader == pathtrace_shader_type::pathtrace ||
+          params.shader == pathtrace_shader_type::naive)
+        radiance = clamp(radiance, 0.0f, 10.0f);
       state.image[idx] += radiance;
       state.hits[idx] += 1;
     }
@@ -840,7 +913,9 @@ void pathtrace_samples(pathtrace_state& state, const scene_data& scene,
           camera, {u, v}, sample_disk(rand2f(state.rngs[idx])));
       auto radiance = shader(scene, bvh, lights, ray, state.rngs[idx], params);
       if (!isfinite(radiance)) radiance = {0, 0, 0};
-      radiance = clamp(radiance, 0.0f, 10.0f);
+      if (params.shader == pathtrace_shader_type::pathtrace ||
+          params.shader == pathtrace_shader_type::naive)
+        radiance = clamp(radiance, 0.0f, 10.0f);
       state.image[idx] += radiance;
       state.hits[idx] += 1;
     });

@@ -78,6 +78,7 @@ enum struct pathtrace_shader_type {
   normal,     // normals
   texcoord,   // texcoords
   color,      // colors
+  albedo,     // albedo for denoising
 };
 
 // Options for trace functions
@@ -94,7 +95,7 @@ struct pathtrace_params {
 };
 
 const auto pathtrace_shader_names = vector<string>{
-    "pathtrace", "naive", "eyelight", "normal", "texcoord", "color"};
+    "pathtrace", "naive", "eyelight", "normal", "texcoord", "color", "albedo"};
 
 // Scene lights used during rendering. These are created automatically.
 struct pathtrace_light {
