@@ -225,7 +225,7 @@ static float sample_delta_pdf(const material_point& material,
 
 // sample using alias method
 inline int sample_discrete_alias(
-    const vector<double>& probs, const vector<int> alias, float ru, float rb) {
+    const vector<double>& probs, const vector<int>& alias, float ru, float rb) {
   // pick a column with uniform probability
   auto idx = sample_uniform(probs.size(), ru);
 
