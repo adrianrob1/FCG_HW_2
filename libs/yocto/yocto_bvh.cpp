@@ -780,7 +780,7 @@ static bool intersect_bvh(const bvh_data& bvh, const shape_data& shape,
     } else if (!shape.quads.empty()) {
       for (auto idx = node.start; idx < node.start + node.num; idx++) {
         auto& q = shape.quads[bvh.primitives[idx]];
-        if (intersect_quad(ray, shape.positions[q.x], shape.positions[q.y],
+        if (intersect_patch(ray, shape.positions[q.x], shape.positions[q.y],
                 shape.positions[q.z], shape.positions[q.w], uv, distance)) {
           hit      = true;
           element  = bvh.primitives[idx];

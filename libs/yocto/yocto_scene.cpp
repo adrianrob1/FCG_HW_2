@@ -285,10 +285,21 @@ vec3f eval_position(const scene_data& scene, const instance_data& instance,
         instance.frame, interpolate_triangle(shape.positions[t.x],
                             shape.positions[t.y], shape.positions[t.z], uv));
   } else if (!shape.quads.empty()) {
+    // TODO: change position calculation
     auto q = shape.quads[element];
-    return transform_point(instance.frame,
-        interpolate_quad(shape.positions[q.x], shape.positions[q.y],
-            shape.positions[q.z], shape.positions[q.w], uv));
+
+    // q01 ----------- q11
+    // |                |
+    // |                |
+    // |                |
+    // q00 ----------- q10
+
+    auto q00 = shape.positions[q.x], q10 = shape.positions[q.y],
+         q11 = shape.positions[q.z], q01 = shape.positions[q.w];
+
+    auto position = (1 - uv.x) * (1 - uv.y) * q00 + uv.x * (1 - uv.y) * q10 +
+                    (1 - uv.x) * uv.y * q01 + uv.x * uv.y * q11;
+    return transform_point(instance.frame, position);
   } else if (!shape.lines.empty()) {
     auto l = shape.lines[element];
     return transform_point(instance.frame,
@@ -311,10 +322,11 @@ vec3f eval_element_normal(
         instance.frame, triangle_normal(shape.positions[t.x],
                             shape.positions[t.y], shape.positions[t.z]));
   } else if (!shape.quads.empty()) {
-    auto q = shape.quads[element];
-    return transform_normal(
-        instance.frame, quad_normal(shape.positions[q.x], shape.positions[q.y],
-                            shape.positions[q.z], shape.positions[q.w]));
+    // TODO: change normal calculation
+    auto q      = shape.quads[element];
+    auto normal = normalize(cross(shape.positions[q.y] - shape.positions[q.x],
+        shape.positions[q.z] - shape.positions[q.y]));
+    return transform_normal(instance.frame, normal);
   } else if (!shape.lines.empty()) {
     auto l = shape.lines[element];
     return transform_normal(instance.frame,
@@ -330,7 +342,8 @@ vec3f eval_element_normal(
 vec3f eval_normal(const scene_data& scene, const instance_data& instance,
     int element, const vec2f& uv) {
   auto& shape = scene.shapes[instance.shape];
-  if (shape.normals.empty())
+  // TODO: calculate geometric normal in case there aren't precomputed normals
+  if (shape.normals.empty() && shape.quads.empty())
     return eval_element_normal(scene, instance, element);
   if (!shape.triangles.empty()) {
     auto t = shape.triangles[element];
@@ -338,10 +351,31 @@ vec3f eval_normal(const scene_data& scene, const instance_data& instance,
         instance.frame, normalize(interpolate_triangle(shape.normals[t.x],
                             shape.normals[t.y], shape.normals[t.z], uv)));
   } else if (!shape.quads.empty()) {
+    // TODO: change normal calculation
     auto q = shape.quads[element];
-    return transform_normal(instance.frame,
-        normalize(interpolate_quad(shape.normals[q.x], shape.normals[q.y],
-            shape.normals[q.z], shape.normals[q.w], uv)));
+
+    auto normal = vec3f{0};
+
+    if (shape.normals.empty()) {
+      // geometric normal
+      auto q00 = shape.positions[q.x], q10 = shape.positions[q.y],
+           q11 = shape.positions[q.z], q01 = shape.positions[q.w];
+
+                             // q01 ----------- q11
+      auto e10 = q10 - q00;  // |                |
+      auto e11 = q11 - q10;  // | e00        e11 |
+      auto e00 = q01 - q00;  // |       e10      |
+                             // q00 ----------- q10
+
+      auto du     = lerp(e10, q11 - q01, uv.y);
+      auto dv     = lerp(e00, e11, uv.x);
+      normal = cross(du, dv);
+    } else {
+      normal = lerp(lerp(shape.normals[q.x], shape.normals[q.y], uv.x),
+          lerp(shape.normals[q.w], shape.normals[q.z], uv.x), uv.y);
+    }
+
+    return transform_normal(instance.frame, normalize(normal));
   } else if (!shape.lines.empty()) {
     auto l = shape.lines[element];
     return transform_normal(instance.frame,

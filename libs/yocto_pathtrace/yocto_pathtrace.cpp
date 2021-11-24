@@ -301,7 +301,8 @@ static float sample_lights_pdf(const scene_data& scene, const bvh_data& bvh,
 
         // compute pdf on this triangle
         auto lposition = eval_position(scene, instance, isec.element, isec.uv);
-        auto lnormal   = eval_element_normal(scene, instance, isec.element);
+        //auto lnormal   = eval_element_normal(scene, instance, isec.element);
+        auto lnormal   = eval_normal(scene, instance, isec.element, isec.uv);
 
         // the last element contains the area of the light
         /*auto area = light.elements_cdf.back();*/

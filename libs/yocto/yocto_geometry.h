@@ -663,8 +663,8 @@ inline ray3f camera_ray(const frame3f& frame, float lens, float aspect,
     float film_, const vec2f& image_uv) {
   auto film = aspect >= 1 ? vec2f{film_, film_ / aspect}
                           : vec2f{film_ * aspect, film_};
-  auto e    = vec3f{0, 0, 0};
-  auto q    = vec3f{
+  auto e = vec3f{0, 0, 0};
+  auto q = vec3f{
       film.x * (0.5f - image_uv.x), film.y * (image_uv.y - 0.5f), lens};
   auto q1  = -q;
   auto d   = normalize(q1 - e);
@@ -816,6 +816,82 @@ inline bool intersect_triangle(const ray3f& ray, const vec3f& p0,
   uv   = {u, v};
   dist = t;
   return true;
+}
+
+// Intersect a ray with a bilinear patch.
+inline bool intersect_patch(const ray3f& ray, const vec3f& p0, const vec3f& p1,
+    const vec3f& p2, const vec3f& p3, vec2f& uv, float& dist) {
+  // Implementation from
+  // Ray Tracing Gems: A Geometric Approach to Ray / Bilinear Patch
+  // Intersections
+
+  auto hit = false;
+
+  auto q01 = p3, q11 = p2, 
+       q00 = p0, q10 = p1;
+  auto e10 = q10 - q00;                    // q01 ----------- q11
+  auto e11 = q11 - q10;                    // |                |
+  auto e00 = q01 - q00;                    // | e00        e11 |
+  auto qn  = cross(q10 - q00, q01 - q11);  // |       e10      |
+  q00 -= ray.o;                            // q00 ----------- q10
+  q10 -= ray.o;
+  float a = dot(cross(q00, ray.d), e00);  // the equation is
+  float c = dot(qn, ray.d);               // a + b u + c u^2
+  float b = dot(cross(q10, ray.d), e11);  // first compute
+
+  b -= a + c;  // a+b+c and then b
+
+  float det = b * b - 4 * a * c;
+  if (det < 0) return false;  // see the right part of Figure 5
+  det = sqrt(det);            // we -use_fast_math in CUDA_NVRTC_OPTIONS
+  float u1, u2;               // two roots(u parameter)
+  float t = ray.tmax, u, v;   // need solution for the smallest t > 0
+  if (c == 0) {               // if c == 0, it is a trapezoid
+    u1 = -a / b;
+    u2 = -1;                            // and there is only one root
+  } else {                              // (c != 0 in Stanford models)
+    u1 = (-b - copysignf(det, b)) / 2;  // numerically "stable" root
+    u2 = a / u1;                        // Viete's formula for u1*u2
+    u1 /= c;
+  }
+  if (0 <= u1 && u1 <= 1) {         // is it inside the patch?
+    auto pa  = lerp(q00, q10, u1);  // point on edge e10 (Fig. 4)
+    auto pb  = lerp(e00, e11, u1);  // it is, actually, pb - pa
+    auto n   = cross(ray.d, pb);
+    det      = dot(n, n);
+    n        = cross(n, pa);
+    float t1 = dot(n, pb);
+    float v1 = dot(n, ray.d);              // no need to check t1 < t
+    if (t1 > 0 && 0 <= v1 && v1 <= det) {  // if t1 > ray.tmax,
+      t = t1 / det;                        // it will be rejected
+      u = u1;
+      v = v1 / det;
+
+    }  // in rtPotentialIntersection
+  }
+  if (0 <= u2 && u2 <= 1) {        // it is slightly different,
+    auto pa = lerp(q00, q10, u2);  // since u1 might be good
+    auto pb = lerp(e00, e11, u2);  // and we need 0 < t2 < t1
+    auto n  = cross(ray.d, pb);
+    det     = dot(n, n);
+    n       = cross(n, pa);
+    auto t2 = dot(n, pb) / det;
+    auto v2 = dot(n, ray.d);
+    if (0 <= v2 && v2 <= det && t > t2 && t2 > 0) {
+      t = t2;
+      u = u2;
+      v = v2 / det;
+    }
+  }
+  if (t > ray.tmin && t < ray.tmax) {
+    // Fill the intersection structure irec.
+    // Normal(s) for the closest hit will be normalized in a shader.
+    dist = t;
+    uv   = {u, v};
+    hit  = true;
+  }
+
+  return hit;
 }
 
 // Intersect a ray with a quad.
