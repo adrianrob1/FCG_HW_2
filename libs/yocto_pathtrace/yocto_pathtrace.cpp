@@ -223,10 +223,22 @@ static float sample_delta_pdf(const material_point& material,
   }
 }
 
+// sample using alias method
+inline int sample_discrete_alias(
+    const vector<double>& probs, const vector<int>& alias, float ru, float rb) {
+  // pick a column with uniform probability
+  auto idx = sample_uniform(probs.size(), ru);
+
+  // toss biased coin to determine which option to pick
+  auto coinToss = rb < probs[idx];
+
+  return coinToss ? idx : alias[idx];
+}
+
 // Sample lights wrt solid angle
 static vec3f sample_lights(const scene_data& scene,
     const pathtrace_lights& lights, const vec3f& position, float rl, float rel,
-    const vec2f& ruv) {
+    float rb, const vec2f& ruv) {
   // YOUR CODE GOES HERE
   auto  lid   = sample_uniform((int)lights.lights.size(), rl);
   auto& light = lights.lights[lid];
@@ -237,14 +249,21 @@ static vec3f sample_lights(const scene_data& scene,
     auto  uv       = ruv;
     if (!shape.triangles.empty()) uv = sample_triangle(ruv);
 
-    auto tid = sample_discrete(light.elements_cdf, rel);
-    auto lp  = eval_position(scene, instance, tid, uv);
+    // TODO: change to next random triangle id
+    /*auto tid = sample_discrete(light.elements_cdf, rel);*/
+    auto tid = sample_discrete_alias(
+        light.probabilities_modified, light.alias, rel, rb);
+    auto lp = eval_position(scene, instance, tid, uv);
 
     return normalize(lp - position);
   } else if (light.environment != invalidid) {
     auto& env     = scene.environments[light.environment];
     auto& texture = scene.textures[env.emission_tex];
-    auto  tid     = sample_discrete(light.elements_cdf, rel);
+
+    // TODO: change to next random texel id
+    /*auto tid = sample_discrete(light.elements_cdf, rel);*/
+    auto tid = sample_discrete_alias(
+        light.probabilities_modified, light.alias, rel, rb);
 
     auto uv = vec2f{((tid % texture.width) + 0.5f) / texture.width,
         ((tid / texture.width) + 0.5f) / texture.height};
@@ -262,13 +281,20 @@ static float sample_lights_pdf(const scene_data& scene, const bvh_data& bvh,
     const pathtrace_lights& lights, const vec3f& position,
     const vec3f& direction) {
   // YOUR CODE GOES HERE
+  // the pdf is the sum of all the possible ways
+  // that a light ray gets generated
+
   auto pdf      = 0.0f;
   auto next_pos = position;
   for (auto& light : lights.lights) {
     if (light.instance != invalidid) {
       auto& instance = scene.instances[light.instance];
       auto  lpdf     = 0.0f;
+
       for (auto bounce = 0; bounce < 100; bounce++) {
+        // sum all the possibilities that I pick that direction
+        // sum over all the possible intersections from the shading position
+        // and accumulate the probability of that one
         auto isec = intersect_bvh(
             bvh, scene, light.instance, {next_pos, direction});
         if (!isec.hit) break;
@@ -277,8 +303,11 @@ static float sample_lights_pdf(const scene_data& scene, const bvh_data& bvh,
         auto lposition = eval_position(scene, instance, isec.element, isec.uv);
         auto lnormal   = eval_element_normal(scene, instance, isec.element);
 
-        // prob triangle * area triangle = area triangle mesh
-        auto area = light.elements_cdf.back();
+        // the last element contains the area of the light
+        /*auto area = light.elements_cdf.back();*/
+        auto area = light.area;
+
+        // accumulate the probability
         lpdf += distance_squared(lposition, position) /
                 (abs(dot(lnormal, direction)) * area);
 
@@ -287,17 +316,22 @@ static float sample_lights_pdf(const scene_data& scene, const bvh_data& bvh,
       }
       pdf += lpdf;
     } else if (light.environment != invalidid) {
-      auto  env      = scene.environments[light.environment];
-      auto& texture  = scene.textures[env.emission_tex];
-      auto  wl       = transform_direction(inverse(env.frame), direction);
-      auto  texcoord = vec2f{
+      auto  env     = scene.environments[light.environment];
+      auto& texture = scene.textures[env.emission_tex];
+
+      // calculate inxex of the texel
+      auto wl       = transform_direction(inverse(env.frame), direction);
+      auto texcoord = vec2f{
           atan2(wl.z, wl.x) / (2 * pif), acos(clamp(wl.y, -1.0f, 1.0f)) / pif};
       if (texcoord.x < 0) texcoord.x += 1;
       auto i = clamp((int)(texcoord.x * texture.width), 0, texture.width - 1);
       auto j = clamp((int)(texcoord.y * texture.height), 0, texture.height - 1);
-      auto prob = sample_discrete_pdf(
+
+      // find the probability of the texel
+      /*auto prob = sample_discrete_pdf(
                       light.elements_cdf, j * texture.width + i) /
-                  light.elements_cdf.back();
+                  light.elements_cdf.back();*/
+      auto prob  = light.probabilities[j * texture.width + i];
       auto angle = (2 * pif / texture.width) * (pif / texture.height) *
                    sin(pif * (j + 0.5f) / texture.height);
       pdf += prob / angle;
@@ -356,7 +390,7 @@ static vec4f shade_pathtrace(const scene_data& scene, const bvh_data& bvh,
                      ? sample_bsdfcos(
                            material, normal, outgoing, rand1f(rng), rand2f(rng))
                      : sample_lights(scene, lights, position, rand1f(rng),
-                           rand1f(rng), rand2f(rng));
+                           rand1f(rng), rand1f(rng), rand2f(rng));
 
       if (incoming == vec3f{0, 0, 0}) break;
       weight *= eval_bsdfcos(material, normal, outgoing, incoming) * 2 /
@@ -607,6 +641,8 @@ pathtrace_lights make_lights(
     const scene_data& scene, const pathtrace_params& params) {
   auto lights = pathtrace_lights{};
 
+  // TODO: here we create the cdfs
+
   for (auto handle = 0; handle < scene.instances.size(); handle++) {
     auto& instance = scene.instances[handle];
     auto& material = scene.materials[instance.material];
@@ -617,22 +653,46 @@ pathtrace_lights make_lights(
     light.instance    = handle;
     light.environment = invalidid;
     if (!shape.triangles.empty()) {
-      light.elements_cdf = vector<float>(shape.triangles.size());
-      for (auto idx = 0; idx < light.elements_cdf.size(); idx++) {
-        auto& t                 = shape.triangles[idx];
-        light.elements_cdf[idx] = triangle_area(
+      /*light.elements_cdf = vector<float>(shape.triangles.size());*/
+      light.probabilities = vector<double>(shape.triangles.size());
+      light.alias         = vector<int>(shape.triangles.size());
+
+      for (auto idx = 0; idx < shape.triangles.size(); idx++) {
+        auto& t = shape.triangles[idx];
+        /*light.elements_cdf[idx] = triangle_area(
+            shape.positions[t.x], shape.positions[t.y], shape.positions[t.z]);*/
+        auto area = triangle_area(
             shape.positions[t.x], shape.positions[t.y], shape.positions[t.z]);
-        if (idx != 0) light.elements_cdf[idx] += light.elements_cdf[idx - 1];
+        light.area += area;
+        light.probabilities[idx] = area;
+
+        /*if (idx != 0) light.elements_cdf[idx] += light.elements_cdf[idx -
+         * 1];*/
       }
     }
     if (!shape.quads.empty()) {
-      light.elements_cdf = vector<float>(shape.quads.size());
-      for (auto idx = 0; idx < light.elements_cdf.size(); idx++) {
-        auto& t                 = shape.quads[idx];
-        light.elements_cdf[idx] = quad_area(shape.positions[t.x],
-            shape.positions[t.y], shape.positions[t.z], shape.positions[t.w]);
-        if (idx != 0) light.elements_cdf[idx] += light.elements_cdf[idx - 1];
+      // light.elements_cdf = vector<float>(shape.quads.size());
+
+      light.probabilities = vector<double>(shape.quads.size());
+      light.alias         = vector<int>(shape.quads.size());
+
+      for (auto idx = 0; idx < shape.quads.size(); idx++) {
+        auto& t = shape.quads[idx];
+        /*light.elements_cdf[idx] = quad_area(shape.positions[t.x],
+            shape.positions[t.y], shape.positions[t.z], shape.positions[t.w]);*/
+        auto area = quad_area(shape.positions[t.x], shape.positions[t.y],
+            shape.positions[t.z], shape.positions[t.w]);
+        light.area += area;
+        light.probabilities[idx] = area;
+
+        /*if (idx != 0) light.elements_cdf[idx] += light.elements_cdf[idx -
+         * 1];*/
       }
+    }
+
+    // normalize probabilities
+    for (auto idx = 0; idx < light.probabilities.size(); idx++) {
+      light.probabilities[idx] /= light.area;
     }
   }
   for (auto handle = 0; handle < scene.environments.size(); handle++) {
@@ -642,15 +702,94 @@ pathtrace_lights make_lights(
     light.instance    = invalidid;
     light.environment = handle;
     if (environment.emission_tex != invalidid) {
-      auto& texture      = scene.textures[environment.emission_tex];
-      light.elements_cdf = vector<float>(texture.width * texture.height);
-      for (auto idx = 0; idx < light.elements_cdf.size(); idx++) {
+      auto& texture = scene.textures[environment.emission_tex];
+      /*light.elements_cdf = vector<float>(texture.width * texture.height);*/
+
+      auto size = texture.width * texture.height;
+
+      light.probabilities = vector<double>(size);
+      light.alias         = vector<int>(size);
+
+      for (auto idx = 0; idx < size; idx++) {
         auto ij    = vec2i{idx % texture.width, idx / texture.width};
         auto th    = (ij.y + 0.5f) * pif / texture.height;
         auto value = lookup_texture(texture, ij.x, ij.y);
-        light.elements_cdf[idx] = max(value) * sin(th);
-        if (idx != 0) light.elements_cdf[idx] += light.elements_cdf[idx - 1];
+        /*light.elements_cdf[idx] = max(value) * sin(th);*/
+
+        light.area += (double)max(value) * sin(th);
+        light.probabilities[idx] = (double)max(value) * sin(th);
+
+        /*if (idx != 0) light.elements_cdf[idx] += light.elements_cdf[idx -
+         * 1];*/
       }
+
+      // normalize probabilities
+      for (auto idx = 0; idx < size; idx++) {
+        light.probabilities[idx] /= light.area;
+      }
+    }
+  }
+
+  // init alias method
+  for (auto& light : lights.lights) {
+    auto average = 1.0 / light.probabilities.size();
+
+    light.probabilities_modified = light.probabilities;
+    auto& probs                  = light.probabilities_modified;
+
+    std::deque<int> small;
+    std::deque<int> large;
+
+    // populate the stacks with the probabilities
+    for (auto i = 0; i < probs.size(); i++) {
+      if (probs[i] >= average)
+        large.push_back(i);
+      else
+        small.push_back(i);
+    }
+
+    while (!small.empty() && !large.empty()) {
+      /* Get the index of the small and the large probabilities. */
+      auto less = small.back();
+      auto more = large.back();
+      small.pop_back();
+      large.pop_back();
+
+      /* These probabilities have not yet been scaled up to be such that
+       * 1/n is given weight 1.0.  We do this here instead.
+       */
+      probs[less]       = probs[less] * probs.size();
+      light.alias[less] = more;
+
+      /* Decrease the probability of the larger one by the appropriate
+       * amount.
+       */
+      probs[more] = (probs[more] + probs[less]) - average;
+
+      /* If the new probability is less than the average, add it into the
+       * small list; otherwise add it to the large list.
+       */
+      if (probs[more] >= 1.0 / probs.size())
+        large.push_back(more);
+      else
+        small.push_back(more);
+    }
+
+    /* At this point, everything is in one list, which means that the
+     * remaining probabilities should all be 1/n.  Based on this, set them
+     * appropriately.  Due to numerical issues, we can't be sure which
+     * stack will hold the entries, so we empty both.
+     */
+    while (!small.empty()) {
+      auto less = small.back();
+      small.pop_back();
+
+      probs[less] = 1.0;
+    }
+    while (!large.empty()) {
+      auto more = large.back();
+      large.pop_back();
+      probs[more] = 1.0;
     }
   }
 
