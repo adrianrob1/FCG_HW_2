@@ -233,6 +233,8 @@ material_point eval_material(const scene_data& scene,
     point.roughness = clamp(point.roughness, min_roughness, 1.0f);
   }
 
+  // TODO: copy hair material data to material point
+
   return point;
 }
 

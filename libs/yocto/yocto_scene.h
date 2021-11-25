@@ -105,6 +105,7 @@ enum struct material_type {
   // clang-format off
   matte, glossy, reflective, transparent, refractive, subsurface, volumetric, 
   gltfpbr
+  // TODO: add hair material data
   // clang-format on
 };
 
@@ -112,6 +113,8 @@ enum struct material_type {
 inline const auto material_type_names = std::vector<std::string>{"matte",
     "glossy", "reflective", "transparent", "refractive", "subsurface",
     "volumetric", "gltfpbr"};
+
+// TODO: add hair material data
 
 // Material for surfaces, lines and triangles.
 // For surfaces, uses a microfacet model with thin sheet transmission.
@@ -129,6 +132,8 @@ struct material_data {
   float         scanisotropy = 0;
   float         trdepth      = 0.01f;
   float         opacity      = 1;
+
+  // TODO: add hair material data
 
   // textures
   int emission_tex   = invalidid;
@@ -263,6 +268,8 @@ struct material_point {
   vec3f         scattering   = {0, 0, 0};
   float         scanisotropy = 0;
   float         trdepth      = 0.01f;
+
+  // TODO: add hair material data
 };
 
 // Eval material to obtain emission, brdf and opacity.

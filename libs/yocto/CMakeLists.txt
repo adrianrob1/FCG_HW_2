@@ -13,7 +13,7 @@ add_library(yocto
   yocto_parallel.h
   ext/stb_image.h ext/stb_image_resize.h ext/stb_image_write.h ext/stb_image.cpp
   ext/tinyexr.h ext/tinyexr.cpp ext/json.hpp ext/fast_float.h
-)
+  yocto_extra/yocto_hair.h yocto_extra/yocto_hair.cpp)
 
 set_target_properties(yocto PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES)
 
