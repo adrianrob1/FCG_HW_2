@@ -1,49 +1,28 @@
-#pragma once
+#ifndef _YOCTO_HAIR_H_
+#define _YOCTO_HAIR_H_
 
 // -----------------------------------------------------------------------------
 // INCLUDES
 // -----------------------------------------------------------------------------
 
-#include <../yocto_math.h>
-#include <../yocto_shading.h>
+#include <yocto/yocto_math.h>
+#include "yocto_hair_material.h"
+#include <yocto/yocto_scene.h>
+#include <yocto/yocto_shading.h>
+
+namespace yocto {
+struct material_data;
+}
 
 // -----------------------------------------------------------------------------
-// MATERIALS
+// EVAL MATERIAL FUNCTION
 // -----------------------------------------------------------------------------
 
 namespace yocto::hair {
 
-inline const int p_max = 3;
-
-struct hair_material {
-  vec3f sigma_a     = zero3f;   // absorption coefficient of the interior
-  float beta_m      = 0.3;      // longitudinal roughness (along length)
-  float beta_n      = 0.3;      // azimuthal roughness (along width)
-  float alpha       = 2;        // angle of hair's scales
-  float eta         = 1.55;     // ior of the interior
-  vec3f color       = zero3f;   // hair color
-  float eumelanin   = 0;
-  float pheomelanin = 0;
-};
-
-struct hair_brdf {
-  vec3f sigma_a = zero3f;
-  float alpha   = 2;
-  float eta     = 1.55;
-  float h       = 0;
-
-  // computed properties
-  std::array<float, p_max + 1> v;
-  float                        s = 0;
-  vec3f                        sin_2k_alpha;
-  vec3f                        cos_2k_alpha;
-  float                        gamma_o = 0;
-
-  // Convert outgoing and incoming directions to BRDF coordinate system
-  frame3f world_to_brdf = identity3x4f;
-};
-
-}  // namespace yocto::hair
+hair_data get_hair_data(const material_data& material, float v,
+    const vec3f& normal, const vec3f& tangent);
+}
 
 // -----------------------------------------------------------------------------
 // SHADING FUNCTIONS
@@ -51,17 +30,14 @@ struct hair_brdf {
 
 namespace yocto::hair {
 
-hair_brdf eval_hair_brdf(const hair_material& material, float v,
-    const vec3f& normal, const vec3f& tangent);
-
 vec3f eval_hair_scattering(
-    const hair_brdf& brdf, const vec3f& outgoing, const vec3f& incoming);
+    const hair_data& brdf, const vec3f& outgoing, const vec3f& incoming);
 
 vec3f sample_hair_scattering(
-    const hair_brdf& brdf, const vec3f& outgoing, const vec2f& rn);
+    const hair_data& brdf, const vec3f& outgoing, const vec2f& rn);
 
 float sample_hair_scattering_pdf(
-    const hair_brdf& brdf, const vec3f& outgoing, const vec3f& incoming);
+    const hair_data& brdf, const vec3f& outgoing, const vec3f& incoming);
 
 }  // namespace yocto::hair
 
@@ -209,16 +185,11 @@ static float sample_trimmed_logistic(float u, float s, float a, float b) {
   return clamp(x, a, b);
 }
 
-// Luminance
-inline float luminance(const vec3f& a) {
-  return (0.2126f * a.x + 0.7152f * a.y + 0.0722f * a.z);
-}
-
 static std::array<float, p_max + 1> compute_ap_pdf(
-    const hair_brdf& brdf, float cos_theta_o) {
-  auto sigma_a = brdf.sigma_a;
-  auto eta     = brdf.eta;
-  auto h       = brdf.h;
+    const hair_data& hair_data, float cos_theta_o) {
+  auto sigma_a = hair_data.sigma_a;
+  auto eta     = hair_data.eta;
+  auto h       = hair_data.h;
 
   // Compute array of $A_p$ values for _cosThetaO_
   auto sin_theta_o = safe_sqrt(1 - cos_theta_o * cos_theta_o);
@@ -249,3 +220,5 @@ static std::array<float, p_max + 1> compute_ap_pdf(
 }
 
 }
+
+#endif

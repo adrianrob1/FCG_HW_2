@@ -46,6 +46,8 @@
 #include "yocto_image.h"
 #include "yocto_math.h"
 #include "yocto_shape.h"
+#include <yocto_extra/yocto_hair_material.h>
+#include <yocto_extra/yocto_hair.h>
 
 // -----------------------------------------------------------------------------
 // USING DIRECTIVES
@@ -104,7 +106,7 @@ struct texture_data {
 enum struct material_type {
   // clang-format off
   matte, glossy, reflective, transparent, refractive, subsurface, volumetric, 
-  gltfpbr
+  gltfpbr, hair
   // TODO: add hair material data
   // clang-format on
 };
@@ -112,7 +114,7 @@ enum struct material_type {
 // Enum labels
 inline const auto material_type_names = std::vector<std::string>{"matte",
     "glossy", "reflective", "transparent", "refractive", "subsurface",
-    "volumetric", "gltfpbr"};
+    "volumetric", "gltfpbr", "hair"};
 
 // TODO: add hair material data
 
@@ -134,6 +136,13 @@ struct material_data {
   float         opacity      = 1;
 
   // TODO: add hair material data
+  vec3f sigma_a     = zero3f;  // absorption coefficient of the interior
+  float beta_m      = 0.3;     // longitudinal roughness (along length)
+  float beta_n      = 0.3;     // azimuthal roughness (along width)
+  float alpha       = 2;       // angle of hair's scales
+  float eta         = 1.55;    // ior of the interior
+  float eumelanin   = 0;
+  float pheomelanin = 0;
 
   // textures
   int emission_tex   = invalidid;
@@ -270,6 +279,7 @@ struct material_point {
   float         trdepth      = 0.01f;
 
   // TODO: add hair material data
+  hair::hair_data hair;
 };
 
 // Eval material to obtain emission, brdf and opacity.

@@ -233,8 +233,6 @@ material_point eval_material(const scene_data& scene,
     point.roughness = clamp(point.roughness, min_roughness, 1.0f);
   }
 
-  // TODO: copy hair material data to material point
-
   return point;
 }
 
@@ -609,6 +607,15 @@ material_point eval_material(const scene_data& scene,
     point.roughness = 0;
   } else {
     if (point.roughness < min_roughness) point.roughness = 0;
+  }
+
+  
+  // TODO: copy hair material data to material point
+  if (point.type == material_type::hair) {
+    auto v      = uv.y;
+    auto normal = eval_normal(scene.shapes[element], element, uv);
+    auto tangent = eval_tangent(scene.shapes[element], element, uv);
+    point.hair = hair::get_hair_data(material, v, normal, tangent);
   }
 
   return point;

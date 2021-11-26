@@ -7,66 +7,66 @@
 
 namespace yocto::hair {
 
-hair_brdf eval_hair_brdf(const hair_material& material, float v,
+hair_data get_hair_data(const material_data& material, float v,
     const vec3f& normal, const vec3f& tangent) {
   
-  auto brdf = hair_brdf{};
+  auto h_data = hair_data{};
 
   if (material.sigma_a != zero3f) {
-    brdf.sigma_a = material.sigma_a;
+    h_data.sigma_a = material.sigma_a;
   } else if (material.color != zero3f) {
-    brdf.sigma_a = sigma_a_from_reflectance(material.color, material.beta_n);
+    h_data.sigma_a = sigma_a_from_reflectance(material.color, material.beta_n);
   } else if (material.eumelanin || material.pheomelanin) {
-    brdf.sigma_a = sigma_a_from_concentration(
+    h_data.sigma_a = sigma_a_from_concentration(
         material.eumelanin, material.pheomelanin);
   }
 
   auto beta_m = material.beta_m;
   auto beta_n = material.beta_n;
-  brdf.alpha  = material.alpha;
-  brdf.eta    = material.eta;
+  h_data.alpha = material.alpha;
+  h_data.eta   = material.eta;
 
-  brdf.h = -1 + 2 * v;
+  h_data.h = -1 + 2 * v;
 
-  brdf.gamma_o = safe_asin(brdf.h);
+  h_data.gamma_o = safe_asin(h_data.h);
 
   // Compute longitudinal variance from beta_m
-  brdf.v[0] = sqr(
+  h_data.v[0] = sqr(
       0.726f * beta_m + 0.812f * sqr(beta_m) + 3.7f * pow<20>(beta_m));
-  brdf.v[1] = 0.25f * brdf.v[0];
-  brdf.v[2] = 4 * brdf.v[0];
-  for (auto p = 3; p <= p_max; p++) brdf.v[p] = brdf.v[2];
+  h_data.v[1] = 0.25f * h_data.v[0];
+  h_data.v[2] = 4 * h_data.v[0];
+  for (auto p = 3; p <= p_max; p++) h_data.v[p] = h_data.v[2];
 
   // Compute azimuthal logistic scale factor from beta_n
-  brdf.s = sqrt_pi_over_8f *
+  h_data.s = sqrt_pi_over_8f *
            (0.265f * beta_n + 1.194f * sqr(beta_n) + 5.372f * pow<22>(beta_n));
 
   // Compute alpha terms for hair scales
-  brdf.sin_2k_alpha[0] = sin(pif / 180 * brdf.alpha);
-  brdf.cos_2k_alpha[0] = safe_sqrt(1 - sqr(brdf.sin_2k_alpha[0]));
+  h_data.sin_2k_alpha[0] = sin(pif / 180 * h_data.alpha);
+  h_data.cos_2k_alpha[0] = safe_sqrt(1 - sqr(h_data.sin_2k_alpha[0]));
   for (auto i = 1; i < 3; i++) {
-    brdf.sin_2k_alpha[i] = 2 * brdf.cos_2k_alpha[i - 1] *
-                           brdf.sin_2k_alpha[i - 1];
-    brdf.cos_2k_alpha[i] = sqr(brdf.cos_2k_alpha[i - 1]) -
-                           sqr(brdf.sin_2k_alpha[i - 1]);
+    h_data.sin_2k_alpha[i] = 2 * h_data.cos_2k_alpha[i - 1] *
+                             h_data.sin_2k_alpha[i - 1];
+    h_data.cos_2k_alpha[i] = sqr(h_data.cos_2k_alpha[i - 1]) -
+                             sqr(h_data.sin_2k_alpha[i - 1]);
   }
 
-  brdf.world_to_brdf = inverse(frame_fromzx(zero3f, normal, tangent));
+  h_data.world_to_brdf = inverse(frame_fromzx(zero3f, normal, tangent));
 
-  return brdf;
+  return h_data;
 }
 
-vec3f eval_hair_scattering(
-    const hair_brdf& brdf, const vec3f& outgoing_, const vec3f& incoming_) {
-  auto sigma_a       = brdf.sigma_a;
-  auto eta           = brdf.eta;
-  auto h             = brdf.h;
-  auto gamma_o       = brdf.gamma_o;
-  auto v             = brdf.v;
-  auto s             = brdf.s;
-  auto sin_2k_alpha  = brdf.sin_2k_alpha;
-  auto cos_2k_alpha  = brdf.cos_2k_alpha;
-  auto world_to_brdf = brdf.world_to_brdf;
+vec3f eval_hair_scattering(const hair_data& hair_data, const vec3f& outgoing_,
+    const vec3f& incoming_) {
+  auto sigma_a       = hair_data.sigma_a;
+  auto eta           = hair_data.eta;
+  auto h             = hair_data.h;
+  auto gamma_o       = hair_data.gamma_o;
+  auto v             = hair_data.v;
+  auto s             = hair_data.s;
+  auto sin_2k_alpha  = hair_data.sin_2k_alpha;
+  auto cos_2k_alpha  = hair_data.cos_2k_alpha;
+  auto world_to_brdf = hair_data.world_to_brdf;
 
   auto outgoing = transform_direction(world_to_brdf, outgoing_);
   auto incoming = transform_direction(world_to_brdf, incoming_);
@@ -141,15 +141,15 @@ vec3f eval_hair_scattering(
 }
 
 vec3f sample_hair_scattering(
-    const hair_brdf& brdf, const vec3f& outgoing_, const vec2f& rn) {
-  auto eta           = brdf.eta;
-  auto h             = brdf.h;
-  auto gamma_o       = brdf.gamma_o;
-  auto v             = brdf.v;
-  auto s             = brdf.s;
-  auto sin_2k_alpha  = brdf.sin_2k_alpha;
-  auto cos_2k_alpha  = brdf.cos_2k_alpha;
-  auto world_to_brdf = brdf.world_to_brdf;
+    const hair_data& hair_data, const vec3f& outgoing_, const vec2f& rn) {
+  auto eta           = hair_data.eta;
+  auto h             = hair_data.h;
+  auto gamma_o       = hair_data.gamma_o;
+  auto v             = hair_data.v;
+  auto s             = hair_data.s;
+  auto sin_2k_alpha  = hair_data.sin_2k_alpha;
+  auto cos_2k_alpha  = hair_data.cos_2k_alpha;
+  auto world_to_brdf = hair_data.world_to_brdf;
 
   auto outgoing = transform_direction(world_to_brdf, outgoing_);
 
@@ -162,7 +162,7 @@ vec3f sample_hair_scattering(
   auto u = std::array<vec2f, 2>{demux_float(rn.x), demux_float(rn.y)};
 
   // Determine which term $p$ to sample for hair scattering
-  auto ap_pdf = compute_ap_pdf(brdf, cos_theta_o);
+  auto ap_pdf = compute_ap_pdf(hair_data, cos_theta_o);
   auto p      = 0;
   for (p = 0; p < p_max; p++) {
     if (u[0][0] < ap_pdf[p]) break;
@@ -221,16 +221,16 @@ vec3f sample_hair_scattering(
       sin_theta_i, cos_theta_i * cos(phi_i), cos_theta_i * sin(phi_i)};
   return transform_direction(inverse(world_to_brdf), incoming);
 }
-float sample_hair_scattering_pdf(
-    const hair_brdf& brdf, const vec3f& outgoing_, const vec3f& incoming_) {
-  auto eta           = brdf.eta;
-  auto h             = brdf.h;
-  auto gamma_o       = brdf.gamma_o;
-  auto v             = brdf.v;
-  auto s             = brdf.s;
-  auto sin_2k_alpha  = brdf.sin_2k_alpha;
-  auto cos_2k_alpha  = brdf.cos_2k_alpha;
-  auto world_to_brdf = brdf.world_to_brdf;
+float sample_hair_scattering_pdf(const hair_data& hair_data,
+    const vec3f& outgoing_, const vec3f& incoming_) {
+  auto eta           = hair_data.eta;
+  auto h             = hair_data.h;
+  auto gamma_o       = hair_data.gamma_o;
+  auto v             = hair_data.v;
+  auto s             = hair_data.s;
+  auto sin_2k_alpha  = hair_data.sin_2k_alpha;
+  auto cos_2k_alpha  = hair_data.cos_2k_alpha;
+  auto world_to_brdf = hair_data.world_to_brdf;
 
   auto outgoing = transform_direction(world_to_brdf, outgoing_);
   auto incoming = transform_direction(world_to_brdf, incoming_);
@@ -251,7 +251,7 @@ float sample_hair_scattering_pdf(
   auto gamma_t     = safe_asin(sin_gamma_t);
 
   // Compute PDF for $A_p$ terms
-  auto ap_pdf = compute_ap_pdf(brdf, cos_theta_o);
+  auto ap_pdf = compute_ap_pdf(hair_data, cos_theta_o);
 
   // Compute PDF sum for hair scattering events
   auto phi = phi_i - phi_o;

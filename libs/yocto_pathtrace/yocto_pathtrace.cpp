@@ -109,6 +109,8 @@ static vec3f eval_bsdfcos(const material_point& material, const vec3f& normal,
     case material_type::refractive:
       return eval_refractive(material.color, material.ior, material.roughness,
           normal, outgoing, incoming);
+    case material_type::hair:
+      return hair::eval_hair_scattering(material.hair, outgoing, incoming);
     default: return {0, 0, 0};
   }
 }
@@ -155,6 +157,8 @@ static vec3f sample_bsdfcos(const material_point& material, const vec3f& normal,
     case material_type::refractive:
       return sample_refractive(material.color, material.ior, material.roughness,
           normal, outgoing, rnl, rn);
+    case material_type::hair:
+      return hair::sample_hair_scattering(material.hair, outgoing, rn);
     default: return {0, 0, 0};
   }
 }
@@ -200,6 +204,9 @@ static float sample_bsdfcos_pdf(const material_point& material,
     case material_type::refractive:
       return sample_refractive_pdf(material.color, material.ior,
           material.roughness, normal, outgoing, incoming);
+    case material_type::hair:
+      return hair::sample_hair_scattering_pdf(
+          material.hair, outgoing, incoming);
     default: return 0;
   }
 }
