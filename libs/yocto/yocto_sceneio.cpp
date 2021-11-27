@@ -2818,14 +2818,14 @@ namespace yocto {
 // Material type
 enum struct material_type40 {
   // clang-format off
-  matte, glossy, metallic, transparent, refractive, subsurface, volume, gltfpbr
+  matte, glossy, metallic, transparent, refractive, subsurface, volume, gltfpbr, hair
   // clang-format on
 };
 
 // Enum labels
 static const auto material_type40_names = std::vector<std::string>{"matte",
     "glossy", "metallic", "transparent", "refractive", "subsurface", "volume",
-    "gltfpbr"};
+    "gltfpbr", "hair"};
 
 NLOHMANN_JSON_SERIALIZE_ENUM(
     material_type40, {
@@ -2837,6 +2837,7 @@ NLOHMANN_JSON_SERIALIZE_ENUM(
                          {material_type40::subsurface, "subsurface"},
                          {material_type40::volume, "volume"},
                          {material_type40::gltfpbr, "gltfpbr"},
+                         {material_type40::hair, "hair"},
                      })
 NLOHMANN_JSON_SERIALIZE_ENUM(
     material_type, {
@@ -2848,6 +2849,7 @@ NLOHMANN_JSON_SERIALIZE_ENUM(
                        {material_type::subsurface, "subsurface"},
                        {material_type::volumetric, "volumetric"},
                        {material_type::gltfpbr, "gltfpbr"},
+                       {material_type::hair, "hair"},
                    })
 
 // Load a scene in the builtin JSON format.
@@ -3286,6 +3288,13 @@ static bool load_json_scene_version41(const string& filename, json_value& json,
         get_opt(element, "type", material.type);
         get_opt(element, "emission", material.emission);
         get_opt(element, "color", material.color);
+        get_opt(element, "sigma_a", material.sigma_a);
+        get_opt(element, "beta_m", material.beta_m);
+        get_opt(element, "beta_n", material.beta_n);
+        get_opt(element, "alpha", material.alpha);
+        get_opt(element, "eta", material.eta);
+        get_opt(element, "eumelanin", material.eumelanin);
+        get_opt(element, "pheomelanin", material.pheomelanin);
         get_opt(element, "metallic", material.metallic);
         get_opt(element, "roughness", material.roughness);
         get_opt(element, "ior", material.ior);
@@ -3523,6 +3532,13 @@ static bool load_json_scene(
         get_opt(element, "type", material.type);
         get_opt(element, "emission", material.emission);
         get_opt(element, "color", material.color);
+        get_opt(element, "sigma_a", material.sigma_a);
+        get_opt(element, "beta_m", material.beta_m);
+        get_opt(element, "beta_n", material.beta_n);
+        get_opt(element, "alpha", material.alpha);
+        get_opt(element, "eta", material.eta);
+        get_opt(element, "eumelanin", material.eumelanin);
+        get_opt(element, "pheomelanin", material.pheomelanin);
         get_opt(element, "metallic", material.metallic);
         get_opt(element, "roughness", material.roughness);
         get_opt(element, "ior", material.ior);

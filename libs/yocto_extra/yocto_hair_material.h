@@ -16,10 +16,10 @@ namespace yocto::hair {
 inline const int p_max = 3;
 
 struct hair_data {
-  vec3f sigma_a = zero3f;
-  float alpha   = 2;
-  float eta     = 1.55;
   float h       = 0;
+  float eta     = 1.55;
+  float alpha   = 2;
+  vec3f sigma_a = zero3f;
 
   // computed properties
   std::array<float, p_max + 1> v;
@@ -29,7 +29,7 @@ struct hair_data {
   float                        gamma_o = 0;
 
   // Convert outgoing and incoming directions to BRDF coordinate system
-  frame3f world_to_brdf = identity3x4f;
+  frame3f world_to_bsdf = identity3x4f;
 };
 
 }  // namespace yocto::hair

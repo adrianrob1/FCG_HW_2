@@ -613,8 +613,9 @@ material_point eval_material(const scene_data& scene,
   // TODO: copy hair material data to material point
   if (point.type == material_type::hair) {
     auto v      = uv.y;
-    auto normal = eval_normal(scene.shapes[element], element, uv);
-    auto tangent = eval_tangent(scene.shapes[element], element, uv);
+    auto& shape   = scene.shapes[instance.shape];
+    auto normal  = eval_normal(shape, element, uv);
+    auto tangent = eval_tangent(shape, element, uv);
     point.hair = hair::get_hair_data(material, v, normal, tangent);
   }
 

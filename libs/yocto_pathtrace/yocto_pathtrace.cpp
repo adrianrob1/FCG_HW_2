@@ -92,7 +92,8 @@ static vec3f eval_bsdfcos(const material_point& material, const vec3f& normal,
     const vec3f& outgoing, const vec3f& incoming) {
   // YOUR CODE GOES HERE
 
-  if (material.roughness == 0) return {0, 0, 0};
+  if (material.roughness == 0 && material.type != material_type::hair)
+    return {0, 0, 0};
 
   switch (material.type) {
     case material_type::matte:
@@ -123,15 +124,12 @@ static vec3f eval_delta(const material_point& material, const vec3f& normal,
   switch (material.type) {
     case material_type::reflective:
       return eval_reflective(material.color, normal, outgoing, incoming);
-      break;
     case material_type::transparent:
       return eval_transparent(
           material.color, material.ior, normal, outgoing, incoming);
-      break;
     case material_type::refractive:
       return eval_refractive(
           material.color, material.ior, normal, outgoing, incoming);
-      break;
     default: return {0, 0, 0};
   }
 }
@@ -140,7 +138,8 @@ static vec3f eval_delta(const material_point& material, const vec3f& normal,
 static vec3f sample_bsdfcos(const material_point& material, const vec3f& normal,
     const vec3f& outgoing, float rnl, const vec2f& rn) {
   // YOUR CODE GOES HERE
-  if (material.roughness == 0) return {0, 0, 0};
+  if (material.roughness == 0 && material.type != material_type::hair)
+    return {0, 0, 0};
 
   switch (material.type) {
     case material_type::matte:
@@ -187,7 +186,8 @@ static float sample_bsdfcos_pdf(const material_point& material,
     const vec3f& normal, const vec3f& outgoing, const vec3f& incoming) {
   // YOUR CODE GOES HERE
 
-  if (material.roughness == 0) return 0;
+   if (material.roughness == 0 && material.type != material_type::hair)
+    return 0;
 
   switch (material.type) {
     case material_type::matte:
@@ -205,8 +205,7 @@ static float sample_bsdfcos_pdf(const material_point& material,
       return sample_refractive_pdf(material.color, material.ior,
           material.roughness, normal, outgoing, incoming);
     case material_type::hair:
-      return hair::sample_hair_scattering_pdf(
-          material.hair, outgoing, incoming);
+      return hair::sample_hair_scattering_pdf(material.hair, outgoing, incoming);
     default: return 0;
   }
 }

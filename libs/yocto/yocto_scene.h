@@ -136,11 +136,11 @@ struct material_data {
   float         opacity      = 1;
 
   // TODO: add hair material data
+  float eta         = 1.55;    // ior of the interior
   vec3f sigma_a     = zero3f;  // absorption coefficient of the interior
   float beta_m      = 0.3;     // longitudinal roughness (along length)
   float beta_n      = 0.3;     // azimuthal roughness (along width)
   float alpha       = 2;       // angle of hair's scales
-  float eta         = 1.55;    // ior of the interior
   float eumelanin   = 0;
   float pheomelanin = 0;
 
