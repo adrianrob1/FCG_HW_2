@@ -50,12 +50,12 @@ hair_data get_hair_data(const material_data& material, float v,
                              sqr(h_data.sin_2k_alpha[i - 1]);
   }
 
-  h_data.world_to_bsdf = inverse(frame_fromzx(zero3f, normal, tangent));
+  h_data.world_to_bsdf = inverse(frame_fromzy(zero3f, normal, tangent));
 
   return h_data;
 }
 
-vec3f eval_hair_scattering(const hair_data& hair_data, const vec3f& outgoing_,
+vec3f eval_hair_scattering(const hair_data& hair_data, const vec3f& normal, const vec3f& outgoing_,
     const vec3f& incoming_) {
   auto sigma_a       = hair_data.sigma_a;
   auto eta           = hair_data.eta;
@@ -134,7 +134,7 @@ vec3f eval_hair_scattering(const hair_data& hair_data, const vec3f& outgoing_,
   // Compute contribution of remaining terms after pMax
   fsum += mp(cos_theta_i, cos_theta_o, sin_theta_i, sin_theta_o, v[p_max]) *
           ap[p_max] / (2 * pif);
-  return fsum;
+  return fsum * abs(dot(normal, incoming));
 }
 
 vec3f sample_hair_scattering(

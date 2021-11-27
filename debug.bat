@@ -1,1 +1,1 @@
-.\bin\ypathtrace --scene tests/19_hair/hair.json --output out/path/hq/19_hair_dirty_1280_1024.jpg --shader pathtrace --samples 1024 --resolution 1280 --bounces 4 --interactive
+.\bin\ypathtrace --scene tests/19_hair/hair.json --output out/path/hq/19_hair_2560_1024.jpg --shader pathtrace --samples 1024 --resolution 2560 --bounces 4

@@ -32,7 +32,7 @@ hair_data get_hair_data(const material_data& material, float v,
 namespace yocto::hair {
 
 vec3f eval_hair_scattering(
-    const hair_data& hair_data, const vec3f& outgoing, const vec3f& incoming);
+    const hair_data& hair_data, const vec3f& normal, const vec3f& outgoing, const vec3f& incoming);
 
 vec3f sample_hair_scattering(
     const hair_data& hair_data, const vec3f& outgoing, const vec2f& rn);

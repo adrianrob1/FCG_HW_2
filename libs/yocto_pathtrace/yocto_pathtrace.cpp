@@ -111,7 +111,7 @@ static vec3f eval_bsdfcos(const material_point& material, const vec3f& normal,
       return eval_refractive(material.color, material.ior, material.roughness,
           normal, outgoing, incoming);
     case material_type::hair:
-      return hair::eval_hair_scattering(material.hair, outgoing, incoming);
+      return hair::eval_hair_scattering(material.hair, normal, outgoing, incoming);
     default: return {0, 0, 0};
   }
 }

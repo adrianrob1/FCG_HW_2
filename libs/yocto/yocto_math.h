@@ -2973,6 +2973,13 @@ inline frame3f frame_fromzx(const vec3f& o, const vec3f& z_, const vec3f& x_) {
   return {x, y, z, o};
 }
 
+inline frame3f frame_fromzy(const vec3f& o, const vec3f& z_, const vec3f& y_) {
+  auto z = normalize(z_);
+  auto y = orthonormalize(y_, z);
+  auto x = normalize(cross(z, y));
+  return {x, y, z, o};
+}
+
 }  // namespace yocto
 
 // -----------------------------------------------------------------------------

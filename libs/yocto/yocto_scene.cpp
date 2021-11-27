@@ -608,7 +608,6 @@ material_point eval_material(const scene_data& scene,
   } else {
     if (point.roughness < min_roughness) point.roughness = 0;
   }
-
   
   // TODO: copy hair material data to material point
   if (point.type == material_type::hair) {
