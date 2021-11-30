@@ -309,6 +309,8 @@ void run(const vector<string>& args) {
   add_option(cli, "noparallel", params.noparallel, "Disable threading.");
   if (!parse_cli(cli, args, error)) print_fatal(error);
 
+  params.noparallel = true; // TODO: remove
+
   // run
   if (!interactive) {
     run_offline(filename, output, params);

@@ -34,6 +34,8 @@
 #include <yocto/yocto_sampling.h>
 #include <yocto/yocto_shading.h>
 #include <yocto/yocto_shape.h>
+#include <stack>
+#include <iostream>
 
 // -----------------------------------------------------------------------------
 // IMPLEMENTATION FOR PATH TRACING
@@ -111,7 +113,8 @@ static vec3f eval_bsdfcos(const material_point& material, const vec3f& normal,
       return eval_refractive(material.color, material.ior, material.roughness,
           normal, outgoing, incoming);
     case material_type::hair:
-      return hair::eval_hair_scattering(material.hair, normal, outgoing, incoming);
+      return hair::eval_hair_scattering(
+          material.hair, normal, outgoing, incoming);
     default: return {0, 0, 0};
   }
 }
@@ -186,8 +189,7 @@ static float sample_bsdfcos_pdf(const material_point& material,
     const vec3f& normal, const vec3f& outgoing, const vec3f& incoming) {
   // YOUR CODE GOES HERE
 
-   if (material.roughness == 0 && material.type != material_type::hair)
-    return 0;
+  if (material.roughness == 0 && material.type != material_type::hair) return 0;
 
   switch (material.type) {
     case material_type::matte:
@@ -205,7 +207,8 @@ static float sample_bsdfcos_pdf(const material_point& material,
       return sample_refractive_pdf(material.color, material.ior,
           material.roughness, normal, outgoing, incoming);
     case material_type::hair:
-      return hair::sample_hair_scattering_pdf(material.hair, outgoing, incoming);
+      return hair::sample_hair_scattering_pdf(
+          material.hair, outgoing, incoming);
     default: return 0;
   }
 }
@@ -231,14 +234,16 @@ static float sample_delta_pdf(const material_point& material,
 
 // sample using alias method
 inline int sample_discrete_alias(
-    const vector<double>& probs, const vector<int>& alias, float ru, float rb) {
+    const vector<float>& probs, const vector<int>& alias, float ru, float rb) {
   // pick a column with uniform probability
-  auto idx = sample_uniform(probs.size(), ru);
+  int idx  = floor(ru * probs.size());
 
   // toss biased coin to determine which option to pick
-  auto coinToss = rb < probs[idx];
+  auto coinToss  = rb < probs[idx];
 
-  return coinToss ? idx : alias[idx];
+  if (coinToss) return idx;
+  else
+    return alias[idx];
 }
 
 // Sample lights wrt solid angle
@@ -256,7 +261,7 @@ static vec3f sample_lights(const scene_data& scene,
     if (!shape.triangles.empty()) uv = sample_triangle(ruv);
 
     // TODO: change to next random triangle id
-    /*auto tid = sample_discrete(light.elements_cdf, rel);*/
+    //auto tid       = sample_discrete(light.elements_cdf, rel);
     auto tid = sample_discrete_alias(
         light.probabilities_modified, light.alias, rel, rb);
     auto lp = eval_position(scene, instance, tid, uv);
@@ -267,7 +272,7 @@ static vec3f sample_lights(const scene_data& scene,
     auto& texture = scene.textures[env.emission_tex];
 
     // TODO: change to next random texel id
-    /*auto tid = sample_discrete(light.elements_cdf, rel);*/
+    //auto tid       = sample_discrete(light.elements_cdf, rel);
     auto tid = sample_discrete_alias(
         light.probabilities_modified, light.alias, rel, rb);
 
@@ -307,12 +312,12 @@ static float sample_lights_pdf(const scene_data& scene, const bvh_data& bvh,
 
         // compute pdf on this triangle
         auto lposition = eval_position(scene, instance, isec.element, isec.uv);
-        //auto lnormal   = eval_element_normal(scene, instance, isec.element);
-        auto lnormal   = eval_normal(scene, instance, isec.element, isec.uv);
+        // auto lnormal   = eval_element_normal(scene, instance, isec.element);
+        auto lnormal = eval_normal(scene, instance, isec.element, isec.uv);
 
         // the last element contains the area of the light
-        /*auto area = light.elements_cdf.back();*/
-        auto area = light.area;
+        auto area = light.elements_cdf.back();
+        //auto area = light.area;
 
         // accumulate the probability
         lpdf += distance_squared(lposition, position) /
@@ -326,7 +331,7 @@ static float sample_lights_pdf(const scene_data& scene, const bvh_data& bvh,
       auto  env     = scene.environments[light.environment];
       auto& texture = scene.textures[env.emission_tex];
 
-      // calculate inxex of the texel
+      // calculate index of the texel
       auto wl       = transform_direction(inverse(env.frame), direction);
       auto texcoord = vec2f{
           atan2(wl.z, wl.x) / (2 * pif), acos(clamp(wl.y, -1.0f, 1.0f)) / pif};
@@ -335,10 +340,10 @@ static float sample_lights_pdf(const scene_data& scene, const bvh_data& bvh,
       auto j = clamp((int)(texcoord.y * texture.height), 0, texture.height - 1);
 
       // find the probability of the texel
-      /*auto prob = sample_discrete_pdf(
+      auto prob = sample_discrete_pdf(
                       light.elements_cdf, j * texture.width + i) /
-                  light.elements_cdf.back();*/
-      auto prob  = light.probabilities[j * texture.width + i];
+                  light.elements_cdf.back();
+      //auto prob_  = light.probabilities[j * texture.width + i];
       auto angle = (2 * pif / texture.width) * (pif / texture.height) *
                    sin(pif * (j + 0.5f) / texture.height);
       pdf += prob / angle;
@@ -626,10 +631,11 @@ static vec4f shade_albedo(const scene_data& scene, const bvh_data& bvh,
     radiance += eval_emission(material, normal, outgoing);
 
     // brdf * light
-    if (material.type == material_type::glossy || material.roughness != 0) radiance += material.color;
+    if (material.type == material_type::glossy || material.roughness != 0)
+      radiance += material.color;
     else
       radiance += pif * eval_bsdfcos(material, normal, outgoing, incoming) /
-                abs(dot(normal, incoming));
+                  abs(dot(normal, incoming));
 
     // continue path
     if (!is_delta(material)) break;
@@ -729,46 +735,43 @@ pathtrace_lights make_lights(
     light.instance    = handle;
     light.environment = invalidid;
     if (!shape.triangles.empty()) {
-      /*light.elements_cdf = vector<float>(shape.triangles.size());*/
-      light.probabilities = vector<double>(shape.triangles.size());
-      light.alias         = vector<int>(shape.triangles.size());
+      light.elements_cdf  = vector<float>(shape.triangles.size());
+      light.probabilities = vector<float>(shape.triangles.size());
 
       for (auto idx = 0; idx < shape.triangles.size(); idx++) {
-        auto& t = shape.triangles[idx];
-        /*light.elements_cdf[idx] = triangle_area(
-            shape.positions[t.x], shape.positions[t.y], shape.positions[t.z]);*/
+        auto& t                 = shape.triangles[idx];
+        light.elements_cdf[idx] = triangle_area(
+            shape.positions[t.x], shape.positions[t.y], shape.positions[t.z]);
         auto area = triangle_area(
             shape.positions[t.x], shape.positions[t.y], shape.positions[t.z]);
         light.area += area;
         light.probabilities[idx] = area;
 
-        /*if (idx != 0) light.elements_cdf[idx] += light.elements_cdf[idx -
-         * 1];*/
+        if (idx != 0) light.elements_cdf[idx] += light.elements_cdf[idx - 1];
       }
+      // normalize probabilities
+      for (auto i = 0; i < light.probabilities.size(); i++)
+        light.probabilities[i] /= light.area;
     }
-    if (!shape.quads.empty()) {
-      // light.elements_cdf = vector<float>(shape.quads.size());
+    else if (!shape.quads.empty()) {
+      light.elements_cdf = vector<float>(shape.quads.size());
 
-      light.probabilities = vector<double>(shape.quads.size());
-      light.alias         = vector<int>(shape.quads.size());
+      light.probabilities = vector<float>(shape.quads.size());
 
       for (auto idx = 0; idx < shape.quads.size(); idx++) {
-        auto& t = shape.quads[idx];
-        /*light.elements_cdf[idx] = quad_area(shape.positions[t.x],
-            shape.positions[t.y], shape.positions[t.z], shape.positions[t.w]);*/
+        auto& t                 = shape.quads[idx];
+        light.elements_cdf[idx] = quad_area(shape.positions[t.x],
+            shape.positions[t.y], shape.positions[t.z], shape.positions[t.w]);
         auto area = quad_area(shape.positions[t.x], shape.positions[t.y],
             shape.positions[t.z], shape.positions[t.w]);
         light.area += area;
         light.probabilities[idx] = area;
 
-        /*if (idx != 0) light.elements_cdf[idx] += light.elements_cdf[idx -
-         * 1];*/
+        if (idx != 0) light.elements_cdf[idx] += light.elements_cdf[idx - 1];
       }
-    }
-
-    // normalize probabilities
-    for (auto idx = 0; idx < light.probabilities.size(); idx++) {
-      light.probabilities[idx] /= light.area;
+      // normalize probabilities
+      for (auto i = 0; i < light.probabilities.size(); i++)
+        light.probabilities[i] /= light.area;
     }
   }
   for (auto handle = 0; handle < scene.environments.size(); handle++) {
@@ -778,47 +781,51 @@ pathtrace_lights make_lights(
     light.instance    = invalidid;
     light.environment = handle;
     if (environment.emission_tex != invalidid) {
-      auto& texture = scene.textures[environment.emission_tex];
-      /*light.elements_cdf = vector<float>(texture.width * texture.height);*/
+      auto& texture      = scene.textures[environment.emission_tex];
+      light.elements_cdf = vector<float>(texture.width * texture.height);
 
       auto size = texture.width * texture.height;
 
-      light.probabilities = vector<double>(size);
-      light.alias         = vector<int>(size);
+      light.probabilities = vector<float>(size);
 
       for (auto idx = 0; idx < size; idx++) {
         auto ij    = vec2i{idx % texture.width, idx / texture.width};
         auto th    = (ij.y + 0.5f) * pif / texture.height;
         auto value = lookup_texture(texture, ij.x, ij.y);
-        /*light.elements_cdf[idx] = max(value) * sin(th);*/
+        
+        auto prob = max(value) * sin(th);
+        
+        light.elements_cdf[idx] = prob;
 
-        light.area += (double)max(value) * sin(th);
-        light.probabilities[idx] = (double)max(value) * sin(th);
+        light.area += prob;
+        light.probabilities[idx] = prob;
 
-        /*if (idx != 0) light.elements_cdf[idx] += light.elements_cdf[idx -
-         * 1];*/
+        if (idx != 0) light.elements_cdf[idx] += light.elements_cdf[idx - 1];
       }
-
       // normalize probabilities
-      for (auto idx = 0; idx < size; idx++) {
-        light.probabilities[idx] /= light.area;
-      }
+      for (auto i = 0; i < light.probabilities.size(); i++)
+        light.probabilities[i] /= light.area;
     }
   }
 
   // init alias method
   for (auto& light : lights.lights) {
-    auto average = 1.0 / light.probabilities.size();
+    auto         size    = light.probabilities.size();
+    const auto average = -log( (double) size );
 
-    light.probabilities_modified = light.probabilities;
+    auto probabilities           = light.probabilities;
+    light.probabilities_modified = vector<float>(size);
     auto& probs                  = light.probabilities_modified;
+    light.alias                  = vector<int>(size);
+
+    for (auto i = 0; i < probs.size(); i++) light.alias[i] = -1;
 
     std::deque<int> small;
     std::deque<int> large;
 
     // populate the stacks with the probabilities
-    for (auto i = 0; i < probs.size(); i++) {
-      if (probs[i] >= average)
+    for (auto i = 0; i < size; i++) {
+      if (log(probabilities[i]) >= average)
         large.push_back(i);
       else
         small.push_back(i);
@@ -828,27 +835,32 @@ pathtrace_lights make_lights(
       /* Get the index of the small and the large probabilities. */
       auto less = small.back();
       auto more = large.back();
-      small.pop_back();
+
       large.pop_back();
+      small.pop_back();
 
       /* These probabilities have not yet been scaled up to be such that
        * 1/n is given weight 1.0.  We do this here instead.
        */
-      probs[less]       = probs[less] * probs.size();
+      probs[less]       = probabilities[less] * size;
       light.alias[less] = more;
 
       /* Decrease the probability of the larger one by the appropriate
        * amount.
        */
-      probs[more] = (probs[more] + probs[less]) - average;
+      probabilities[more] = (probabilities[more] + probabilities[less]) -
+                            exp(average);
 
       /* If the new probability is less than the average, add it into the
        * small list; otherwise add it to the large list.
        */
-      if (probs[more] >= 1.0 / probs.size())
-        large.push_back(more);
-      else
+      auto p = log(probabilities[more]);
+
+      if ( p < average ) {
         small.push_back(more);
+      } else {
+        large.push_back(more);
+      }
     }
 
     /* At this point, everything is in one list, which means that the
@@ -859,13 +871,12 @@ pathtrace_lights make_lights(
     while (!small.empty()) {
       auto less = small.back();
       small.pop_back();
-
-      probs[less] = 1.0;
+      probs[less] = 1.0f;
     }
     while (!large.empty()) {
       auto more = large.back();
       large.pop_back();
-      probs[more] = 1.0;
+      probs[more] = 1.0f;
     }
   }
 

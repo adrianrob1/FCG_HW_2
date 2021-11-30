@@ -55,7 +55,7 @@ hair_data get_hair_data(const material_data& material, float v,
   return h_data;
 }
 
-vec3f eval_hair_scattering(const hair_data& hair_data, const vec3f& normal, const vec3f& outgoing_,
+vec3f eval_hair_scattering(const hair_data& hair_data, const vec3f& normal_, const vec3f& outgoing_,
     const vec3f& incoming_) {
   auto sigma_a       = hair_data.sigma_a;
   auto eta           = hair_data.eta;
@@ -67,6 +67,7 @@ vec3f eval_hair_scattering(const hair_data& hair_data, const vec3f& normal, cons
   auto cos_2k_alpha  = hair_data.cos_2k_alpha;
   auto world_to_bsdf = hair_data.world_to_bsdf;
 
+  auto normal   = transform_direction(world_to_bsdf, normal_);
   auto outgoing = transform_direction(world_to_bsdf, outgoing_);
   auto incoming = transform_direction(world_to_bsdf, incoming_);
 

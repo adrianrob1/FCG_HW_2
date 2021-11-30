@@ -884,7 +884,7 @@ inline bool intersect_patch(const ray3f& ray, const vec3f& p0, const vec3f& p1,
     }
   }
   if (t > ray.tmin && t < ray.tmax) {
-    // Fill the intersection structure irec.
+    // Fill the intersection info
     // Normal(s) for the closest hit will be normalized in a shader.
     dist = t;
     uv   = {u, v};

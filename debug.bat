@@ -1,1 +1,1 @@
-.\bin\ypathtrace --scene tests/19_hair/hair.json --output out/path/hq/19_hair_2560_1024.jpg --shader pathtrace --samples 1024 --resolution 2560 --bounces 4
+.\bin\ypathtrace --scene tests/20_alias_method_stress-test/stress-test.json --output out/path/20_test_720_alias_256.jpg --shader pathtrace --samples 256 --resolution 720 --bounces 4 --interactive
