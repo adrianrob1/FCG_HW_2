@@ -11,7 +11,6 @@ exts
 .vs
 libs/yocto_gui/*
 libs/yocto/ext/*
-readme.*
 Reference  Materials/Bilinear Patches/2019_Book_RayTracingGems.pdf
 Reference  Materials/Bilinear Patches/ramsey-2004-RBPI.pdf
 *.pdf
