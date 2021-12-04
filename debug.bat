@@ -1,1 +1,1 @@
-.\bin\ypathtrace --scene tests/20_alias_method_stress-test/stress-test.json --output out/path/20_test_720_alias_256.jpg --shader pathtrace --samples 256 --resolution 720 --bounces 4 --interactive
+.\bin\ypathtrace --scene tests/11_bathroom1/bathroom1.json --output out/path/11_bathroom1_1280_8.jpg --shader pathtrace --samples 8 --resolution 1280 --bounces 8

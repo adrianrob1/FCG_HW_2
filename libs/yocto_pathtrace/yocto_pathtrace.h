@@ -102,10 +102,6 @@ struct pathtrace_light {
   int           instance     = invalidid;
   int           environment  = invalidid;
   vector<float> elements_cdf = {};
-  vector<int>   alias;
-  vector<float> probabilities;
-  vector<float>  probabilities_modified;
-  float area;
 };
 
 // Scene lights
