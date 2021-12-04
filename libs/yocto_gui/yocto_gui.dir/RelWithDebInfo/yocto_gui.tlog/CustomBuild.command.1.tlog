@@ -1,0 +1,10 @@
+^D:\DESKTOP\FCG_HW_2\LIBS\YOCTO_GUI\CMAKELISTS.TXT
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SD:/Desktop/FCG_HW_2 -BD:/Desktop/FCG_HW_2 --check-stamp-file D:/Desktop/FCG_HW_2/libs/yocto_gui/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

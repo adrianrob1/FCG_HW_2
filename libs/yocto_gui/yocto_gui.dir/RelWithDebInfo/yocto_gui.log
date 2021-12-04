@@ -1,0 +1,16 @@
+﻿  Building Custom Rule D:/Desktop/FCG_HW_2/libs/yocto_gui/CMakeLists.txt
+  yocto_opengl.cpp
+D:\Desktop\FCG_HW_2\libs\yocto\yocto_extra/yocto_hair.h(9,10): fatal error C1083: Cannot open include file: '../yocto_shading.h': No such file or directory
+  yocto_shade.cpp
+D:\Desktop\FCG_HW_2\libs\yocto\yocto_extra/yocto_hair.h(9,10): fatal error C1083: Cannot open include file: '../yocto_shading.h': No such file or directory
+  yocto_imgui.cpp
+  yocto_glview.cpp
+D:\Desktop\FCG_HW_2\libs\yocto\yocto_extra/yocto_hair.h(9,10): fatal error C1083: Cannot open include file: '../yocto_shading.h': No such file or directory
+  imgui.cpp
+  imgui_demo.cpp
+  imgui_draw.cpp
+  imgui_widgets.cpp
+  imgui_tables.cpp
+  imgui_impl_glfw.cpp
+  imgui_impl_opengl3.cpp
+  Generating Code...

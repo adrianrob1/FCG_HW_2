@@ -1,16 +1,3 @@
 bin
 build
-out
-check
-tests
-exts
-/*.hdr
-/*.exr
-/*.png
-/*.jpg
 .vs
-libs/yocto_gui/*
-libs/yocto/ext/*
-Reference  Materials/Bilinear Patches/2019_Book_RayTracingGems.pdf
-Reference  Materials/Bilinear Patches/ramsey-2004-RBPI.pdf
-*.pdf
